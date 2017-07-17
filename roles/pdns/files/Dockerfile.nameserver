@@ -1,0 +1,38 @@
+FROM phusion/baseimage:latest
+
+RUN apt update \
+    && apt install -y --no-install-recommends \
+        debconf-utils
+
+COPY ./powerdns/nameserver/pdns-backend-pgsql.seed /tmp/pdns-backend-pgsql.seed
+
+# pdns-backend-pgsql.seed defines values that would otherwise
+# get set through an interactive cli during installation
+RUN debconf-set-selections /tmp/pdns-backend-pgsql.seed \
+    && apt install -y --no-install-recommends \
+        libpq-dev \
+        libssl-dev \
+        libtool \
+        pandoc \
+        pdns-backend-pgsql \
+        pdns-server \
+        pdns-tools \
+    && apt-get clean \
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /tmp/* \
+        /var/tmp/*
+
+RUN mkdir /etc/service/pdns_nameserver
+COPY ./powerdns/nameserver/nameserver.sh /etc/service/pdns_nameserver/run
+RUN chmod 0755 /etc/service/pdns_nameserver/run
+
+COPY ./powerdns/nameserver/pdns.conf /etc/powerdns/pdns.conf
+RUN chmod 0600 /etc/powerdns/pdns.conf \
+    && chown root:root /etc/powerdns/pdns.conf
+
+COPY ./powerdns/pdns.d/pdns.local.gpgsql.conf /etc/powerdns/pdns.d/pdns.local.gpgsql.conf
+RUN chmod 0640 /etc/powerdns/pdns.d/pdns.local.gpgsql.conf \
+    && chown pdns:root /etc/powerdns/pdns.d/pdns.local.gpgsql.conf
+
+CMD ["/sbin/my_init"]

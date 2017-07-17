@@ -1,0 +1,43 @@
+version: '2'
+services:
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    environment:
+      PGDATABASE: pdns
+      PGPASSWORD: "{{ pdns_db_password }}"
+      PGUSER: postgres
+    hostname: pdns_db
+    network_mode: host
+    ports:
+      - "5432:5432/tcp"
+    restart: always
+    volumes:
+      - /var/lib/pdns/db:/var/lib/postgresql/data
+
+  recursor:
+    build:
+      context: .
+      dockerfile: Dockerfile.recursor
+    depends_on:
+      - db
+    hostname: pdns_recursor
+    network_mode: host
+    ports:
+      - "{{ phys_intf_dns_nameserver }}:5353:5353/tcp"
+      - "{{ phys_intf_dns_nameserver }}:5353:5353/udp"
+    restart: always
+
+  nameserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.nameserver
+    depends_on:
+      - recursor
+    hostname: pdns_nameserver
+    network_mode: host
+    ports:
+      - "{{ phys_intf_dns_nameserver }}:53:53/tcp"
+      - "{{ phys_intf_dns_nameserver }}:53:53/udp"
+    restart: always

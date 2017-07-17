@@ -1,0 +1,28 @@
+version: '2'
+services:
+  ddns:
+    build:
+      context: .
+      dockerfile: Dockerfile.ddns
+    hostname: kea_ddns
+    network_mode: host
+    ports:
+      - "{{ phys_intf_ddns_server }}:53001:53001/udp"
+    restart: always
+    volumes:
+      - /var/lib/kea:/var/lib/kea
+      - ./kea/ddns/ddns.json:/etc/kea/ddns.json
+
+  dhcp4:
+    build:
+      context: .
+      dockerfile: Dockerfile.dhcp4
+    hostname: kea_dhcp4
+    network_mode: "host"
+    ports:
+      - "{{ phys_intf_dhcp4_server }}:67:67/udp"
+      - "{{ phys_intf_dhcp4_server }}:68:68/udp"
+    restart: always
+    volumes:
+      - /var/lib/kea:/var/lib/kea
+      - ./kea/dhcp4/dhcp4.json:/etc/kea/dhcp4.json

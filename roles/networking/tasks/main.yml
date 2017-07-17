@@ -1,0 +1,60 @@
+---
+- name: Detecting NetworkManager.conf
+  stat:
+    path: "/etc/NetworkManager/NetworkManager.conf"
+  register: network_manager
+
+- name: Disable dnsmasq
+  replace:
+    dest: "/etc/NetworkManager/NetworkManager.conf"
+    regexp: "^dns=dnsmasq$"
+    replace: "#dns=dnsmasq"
+  when: network_manager.stat.exists == True
+  become: true
+
+- name: Delete existing network interfaces
+  file:
+    path: "{{ item.src }}"
+    state: absent
+  with_filetree:
+    - /etc/network/interfaces.d
+  when: item.state == 'file'
+  become: true
+
+- name: Enable ipv4 forwarding
+  replace:
+    dest: "/etc/sysctl.conf"
+    regexp: "^#net.ipv4.ip_forward=1$"
+    replace: "net.ipv4.ip_forward=1"
+  become: true
+
+- name: Copy /etc/network/interfaces
+  copy:
+    src: "{{ role_path }}/files/interfaces"
+    dest: "/etc/network/interfaces"
+    mode: 0644
+  become: true
+
+- name: Copy physical interface config
+  template:
+    src: "{{ role_path }}/files/interfaces.d/phys_intf.conf"
+    dest: "/etc/network/interfaces.d/{{ phys_intf }}.conf"
+    mode: 0644
+  become: true
+
+- name: Copy kubernetes bridge config
+  template:
+    src: "{{ role_path }}/files/interfaces.d/kubernetes_bridge.conf"
+    dest: "/etc/network/interfaces.d/{{ k8s_bridge }}.conf"
+    mode: 0644
+  become: true
+
+# default to true because an error stating 'RTNETLINK answers: File exists'
+# is sometimes thrown even though the bridge started correctly
+- name: Reload network interfaces
+  shell: ifdown -a && ifup -a || true;
+  become: true
+
+- name: Update resolv.conf to use local dns nameserver
+  shell: echo nameserver {{ phys_intf_dns_nameserver }} > /etc/resolv.conf;
+  become: true

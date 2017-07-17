@@ -1,0 +1,10 @@
+USE_LXC_BRIDGE="no"
+LXC_BRIDGE="{{ k8s_bridge }}"
+LXC_ADDR="{{ k8s_ip }}"
+
+LXC_NETMASK="{{ k8s_netmask }}"
+LXC_NETWORK="{{ k8s_host_prefix }}"
+
+LXC_DHCP_RANGE="{{ k8s_dhcp_start }},{{ k8s_dhcp_stop }}"
+LXC_DHCP_MAX="253"
+LXC_DHCP_CONFILE=/var/lib/kea/kea-leases4.csv

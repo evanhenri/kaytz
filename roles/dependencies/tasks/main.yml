@@ -1,0 +1,25 @@
+---
+- name: Add apt repository containing newer openssh
+  apt_repository:
+    repo: deb http://archive.ubuntu.com/ubuntu yakkety main
+  become: true
+
+- name: Install apt dependencies
+  apt:
+    name: "{{ item }}"
+  with_items:
+    - bridge-utils
+    - build-essential
+    - openssh-client=1:7.3p1-1
+    - openssh-server=1:7.3p1-1
+    - sshpass
+  become: true
+
+- name: Install pip dependencies
+  pip:
+    name: "{{ item }}"
+  with_items:
+    - dnspython
+    - netaddr
+    - PyYAML
+  become: true

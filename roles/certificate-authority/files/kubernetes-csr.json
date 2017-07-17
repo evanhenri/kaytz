@@ -1,0 +1,25 @@
+{
+  "CN": "kubernetes",
+  "hosts": [
+    "{{ phys_intf_ip }}",
+    "10.240.0.10",
+    "10.240.0.11",
+    "10.240.0.12",
+    "{{ k8s_ip }}",
+    "127.0.0.1",
+    "kubernetes.default"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "Cluster",
+      "ST": "Oregon"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# $ sudo apt install pdns-backend-pgsql
+# ...Manually enter desired selections...
+# $ sudo apt install debconf-utils
+# $ sudo debconf-get-selections | grep pdns-backend-pgsql
+# Use output of above command to automate installation in the future
+# http://blog.hjksolutions.com/articles/2007/07/27/unattended-package-installation-with-debian-and-ubuntu.html
+
+# PostgreSQL application password for pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/app-pass           password
+pdns-backend-pgsql  pdns-backend-pgsql/app-password-confirm     password
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/admin-pass         password
+pdns-backend-pgsql  pdns-backend-pgsql/password-confirm         password
+pdns-backend-pgsql  pdns-backend-pgsql/remove-error             select  abort
+
+# Deconfigure database for pdns-backend-pgsql with dbconfig-common?
+pdns-backend-pgsql  pdns-backend-pgsql/dbconfig-remove          boolean true
+
+# Reinstall database for pdns-backend-pgsql?
+pdns-backend-pgsql  pdns-backend-pgsql/dbconfig-reinstall       boolean false
+pdns-backend-pgsql  pdns-backend-pgsql/internal/skip-preseed    boolean false
+
+# PostgreSQL database name for pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/db/dbname                string  pdns
+
+# PostgreSQL username for pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/db/app-user              string  pdns@localhost
+
+# Delete the database for pdns-backend-pgsql?
+pdns-backend-pgsql  pdns-backend-pgsql/purge                    boolean false
+
+# Database type to be used by pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/database-type            select  pgsql
+
+# Back up the database for pdns-backend-pgsql before upgrading?
+pdns-backend-pgsql  pdns-backend-pgsql/upgrade-backup           boolean true
+pdns-backend-pgsql  pdns-backend-pgsql/internal/reconfiguring   boolean false
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/manualconf         note
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/authmethod-admin   select  ident
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/admin-user         string  postgres
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/changeconf         boolean false
+
+# Connection method for PostgreSQL database of pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/method select      TCP/IP
+pdns-backend-pgsql  pdns-backend-pgsql/upgrade-error            select  abort
+
+# Configure database for pdns-backend-pgsql with dbconfig-common?
+pdns-backend-pgsql  pdns-backend-pgsql/dbconfig-install         boolean false
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/no-empty-passwords error
+pdns-backend-pgsql  pdns-backend-pgsql/passwords-do-not-match   error
+
+# Perform upgrade on database for pdns-backend-pgsql with dbconfig-common?
+pdns-backend-pgsql  pdns-backend-pgsql/dbconfig-upgrade         boolean true
+
+# Host running the PostgreSQL server for pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/remote/newhost           string
+pdns-backend-pgsql  pdns-backend-pgsql/missing-db-package-error select  abort
+pdns-backend-pgsql  pdns-backend-pgsql/remote/port              string
+pdns-backend-pgsql  pdns-backend-pgsql/pgsql/authmethod-user    select  password
+
+# Host name of the PostgreSQL database server for pdns-backend-pgsql:
+pdns-backend-pgsql  pdns-backend-pgsql/remote/host              select  localhost
+pdns-backend-pgsql  pdns-backend-pgsql/install-error            select  abort

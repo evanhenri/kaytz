@@ -1,0 +1,74 @@
+{
+    "Dhcp4": {
+        "interfaces-config": {
+            "interfaces": [
+                "{{ k8s_bridge }}"
+            ]
+        },
+        "lease-database": {
+            "type": "memfile",
+            "persist": true,
+            "name": "/var/lib/kea/kea-leases4.csv",
+            "lfc-interval": 1800
+        },
+        "dhcp-ddns": {
+            "enable-updates": true,
+            "qualifying-suffix": "{{ domain }}",
+            "generated-prefix": "",
+            "max-queue-size": 1024,
+            "ncr-format": "JSON",
+            "ncr-protocol": "UDP",
+            "override-client-update": false,
+            "override-no-update": false,
+            "replace-client-name": false,
+            "sender-ip": "0.0.0.0",
+            "sender-port": 0,
+            "server-ip": "127.0.0.1",
+            "server-port": 53001
+        },
+        "expired-leases-processing": {
+            "reclaim-timer-wait-time": 5,
+            "flush-reclaimed-timer-wait-time": 5,
+            "hold-reclaimed-time": 3600,
+            "max-reclaim-leases": 0,
+            "max-reclaim-time": 0,
+            "unwarned-reclaim-cycles": 5
+        },
+        "valid-lifetime": 300,
+        "subnet4": [
+            {
+                "subnet": "{{ k8s_host_prefix }}",
+                "pools": [
+                    {
+                        "match-client-id": false,
+                        "pool": "{{ k8s_dhcp_start }} - {{ k8s_dhcp_stop }}",
+                        "subnet": "{{ k8s_host_prefix }}"
+                    }
+                ],
+                "option-data": [
+                    {
+                        "name": "domain-name-servers",
+                        "code": 6,
+                        "space": "dhcp4",
+                        "csv-format": true,
+                        "data": "{{ k8s_ip }}"
+                    }
+                ]
+            }
+        ]
+    },
+    "Logging": {
+        "loggers": [
+            {
+                "name": "kea-dhcp4",
+                "output_options": [
+                    {
+                        "output": "/var/log/kea-dhcp4.log"
+                    }
+                ],
+                "severity": "DEBUG",
+                "debuglevel": 10
+            }
+        ]
+    }
+}

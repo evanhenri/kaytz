@@ -1,0 +1,67 @@
+---
+- name: Copy pdns directories
+  file:
+    mode: "{{ item.mode }}"
+    path: "{{ home }}/pdns/{{ item.path }}"
+    state: directory
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'directory'
+
+- name: Copy templated pdns files
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ home }}/pdns/{{ item.path }}"
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'file'
+  no_log: True
+
+- name: Build and run pdns docker containers
+  docker_service:
+    build: yes
+    project_src: "{{ home }}/pdns"
+    restarted: yes
+  become: true
+
+- name: Create NATIVE type domains and add SOA and NS records
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil create-zone {{ item }}" || true
+  with_items:
+    - "{{ domain }} ns1.{{ domain }}"
+    - "{{ k8s_ptr_record }} ns1.{{ domain }}"
+  become: true
+
+- name: Add A records
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil add-record {{ item }}" || true
+  with_items:
+    - "{{ domain }} . A {{ phys_intf_ip }}"
+    - "{{ domain }} ns1 A {{ phys_intf_dns_nameserver }}"
+  become: true
+
+- name: Set ddns meta-data
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil set-meta {{ item }}" || true
+  with_items:
+    - "{{ domain }} ALLOW-DNSUPDATE-FROM 0.0.0.0/0"
+    - "{{ k8s_ptr_record }} ALLOW-DNSUPDATE-FROM 0.0.0.0/0"
+  become: true
+
+- name: Import tsig keys
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil import-tsig-key {{ item }}" || true
+  with_items:
+    - "ddns-tsig-key.{{ domain }} hmac-sha512 {{ kea_ddns_key }}"
+    - "ddns-tsig-key.{{ k8s_ptr_record }} hmac-sha512 {{ kea_ddns_key }}"
+  become: true
+  no_log: True
+
+- name: Set tsig dns update meta-data
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil set-meta {{ item }}" || true
+  with_items:
+    - "{{ domain }} TSIG-ALLOW-DNSUPDATE ddns-tsig-key.{{ domain }}"
+    - "{{ k8s_ptr_record }} TSIG-ALLOW-DNSUPDATE ddns-tsig-key.{{ domain }}"
+  become: true
+
+- name: Secure, rectify, and check all zones
+  shell: docker exec pdns_nameserver_1 bash -c "pdnsutil {{ item }}" || true
+  with_items:
+    - secure-all-zones increase-serial
+    - rectify-all-zones
+    - check-all-zones
+  become: true

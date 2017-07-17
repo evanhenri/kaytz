@@ -1,0 +1,37 @@
+---
+- name:
+  debug:
+    msg: "ok"
+
+#- name: Delete pre-existing sub-ansible playbook
+#  file:
+#    path: "/home/{{ ansible_user }}/ansible-nodes"
+#    state: absent
+#
+#- name: Copy templated nodes sub-ansible playbook directories
+#  file:
+#    mode: "{{ item.mode }}"
+#    path: "/home/{{ ansible_user }}/ansible-nodes/{{ item.path }}"
+#    state: directory
+#  with_filetree: "{{ role_path }}/files/ansible-nodes"
+#  when: item.state == 'directory'
+#
+#- name: Copy templated nodes sub-ansible playbook directories
+#  copy:
+#    src: "{{ role_path }}/files/ansible-nodes/{{ item.path }}"
+#    dest: "/home/{{ ansible_user }}/ansible-nodes/{{ item.path }}"
+#  with_filetree: "{{ role_path }}/files/ansible-nodes"
+#  when: item.state == 'file'
+#
+#- name: Copy bastion group vars to ansible-nodes localhost group vars
+#  template:
+#    src: "{{ playbook_dir }}/group_vars/bastion/config.yml"
+#    dest: "/home/{{ ansible_user }}/ansible-nodes/group_vars/localhost/config.yml"
+#
+#- name: Copy ansible-nodes ansible.cfg
+#  template:
+#    src: "{{ role_path }}/files/ansible-nodes/ansible.cfg"
+#    dest: "/home/{{ ansible_user }}/ansible-nodes/ansible.cfg"
+
+
+

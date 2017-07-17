@@ -1,0 +1,24 @@
+---
+- name: Configure local machines
+  hosts: localhosts
+  roles:
+    - dependencies
+    - bootstrap
+
+- name: Configure bastion machines
+  hosts: bastions
+  roles:
+    - dependencies
+    - docker
+    - pdns
+    - networking
+    - kea
+    - lxc
+    - kubectl
+    - certificate-authority
+    - auth-config
+
+- name: Running nodes actions
+  hosts: nodes
+  roles:
+    - node

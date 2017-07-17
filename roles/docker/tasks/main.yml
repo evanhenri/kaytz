@@ -1,0 +1,42 @@
+---
+- name: Add dockerproject gpg key
+  apt_key:
+    id: 58118E89F3A912897C070ADBF76221572C52609D
+    url: "https://apt.dockerproject.org/gpg"
+  become: true
+
+- name: Add docker apt repository
+  apt_repository:
+    repo: deb https://apt.dockerproject.org/repo/ ubuntu-{{ ansible_distribution_release }} main
+  become: true
+
+- name: Install docker apt dependencies
+  apt:
+    name: "{{ item }}"
+    install_recommends: no
+  with_items:
+    - docker-engine
+  become: true
+
+- name: Install docker pip dependencies
+  pip:
+    name: docker-compose
+    version: 1.12.0
+  become: true
+
+- name: Add user to docker group
+  user:
+    append: yes
+    name: "{{ ansible_user }}"
+    groups: docker
+  become: true
+
+- name: Apply user group addition without logging out
+  shell: exec sudo su -l "{{ ansible_user }}"
+
+- name: Start docker daemon
+  service:
+    name: docker
+    enabled: yes
+    state: started
+  become: true

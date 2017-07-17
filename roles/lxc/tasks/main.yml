@@ -1,0 +1,221 @@
+---
+- name: Install apt dependencies
+  apt:
+    name: "{{ item }}"
+    install_recommends: no
+  with_items:
+    - lxc
+    - lxc-templates
+  become: true
+
+- name: Set /var/lib/lxc directory permissions
+  file:
+    path: "/var/lib/lxc"
+    mode: 0755
+    recurse: yes
+    state: directory
+  become: true
+
+- name: Assign UIDs
+  command: usermod --add-subuid 100000-165536 {{ ansible_user }}
+  become: true
+
+- name: Assign GIDs
+  command: usermod --add-subgid 100000-165536 {{ ansible_user }}
+  become: true
+
+- name: Copy /etc/lxc/default.conf
+  template:
+    src: "{{ role_path }}/files/default.conf"
+    dest: "/etc/lxc/default.conf"
+    mode: 0644
+  become: true
+
+- name: Copy /etc/default/lxc-net
+  template:
+    src: "{{ role_path }}/files/lxc-net"
+    dest: "/etc/default/lxc-net"
+    mode: 0644
+  become: true
+
+- name: Detect running nodes
+  command: lxc-ls --running --line
+  register: lxc_running
+  become: true
+
+- name: Stop running nodes
+  command: lxc-stop --name={{ item }}
+  with_items: "{{ lxc_running.stdout_lines }}"
+  become: true
+
+- name: Detect stopped nodes
+  command: lxc-ls --stopped --line
+  register: lxc_stopped
+  become: true
+
+- name: Destroy stopped nodes
+  command: lxc-destroy --name={{ item }}
+  with_items: "{{ lxc_stopped.stdout_lines }}"
+  become: true
+
+## fixme: this is a hacky workaround
+- name: Delete existing DNS records
+  shell: docker-compose exec db psql -c "DELETE FROM records WHERE type='A' OR type='DHCID';" || true
+  args:
+    chdir: "{{ home }}/pdns"
+
+- name: Create nodes
+  command: |
+    lxc-create \
+      --template=download \
+      --name={{ item.fqdn }} \
+      -- \
+      --dist={{ item.dist }} \
+      --arch={{ item.arch }} \
+      --release={{ item.release }}
+  with_items: "{{ nodes }}"
+  become: true
+
+- name: Delete default node config files
+  file:
+    path: "/var/lib/lxc/{{ item.fqdn }}/config"
+    state: absent
+  with_items: "{{ nodes }}"
+  become: true
+
+# https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
+# https://unix.stackexchange.com/questions/177030/what-is-an-unprivileged-lxc-container
+# http://containerops.org/2013/11/19/lxc-networking/
+- name: Generate node config files
+  blockinfile:
+    path: "/var/lib/lxc/{{ item.1.fqdn }}/config"
+    create: yes
+    mode: 0644
+    block: |
+      lxc.include = /usr/share/lxc/config/ubuntu.common.conf
+      lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
+
+      lxc.rootfs = /var/lib/lxc/{{ item.1.fqdn }}/rootfs
+      lxc.rootfs.backend = dir
+      lxc.utsname = {{ item.1.fqdn }}
+      lxc.arch = amd64
+
+      lxc.include = /etc/lxc/default.conf
+      lxc.network.name = eth0
+      lxc.network.veth.pair = veth0-{{ item.0 }}
+
+      # Default to empty ipv4 address as the container will get assigned an ip via dhcp from the kia docker container
+      lxc.network.ipv4 = 0.0.0.0/{{ k8s_prefix }} {{ k8s_broadcast }}
+      lxc.network.ipv4.gateway = auto
+      lxc.start.auto = 1
+  with_indexed_items: "{{ nodes }}"
+  become: true
+
+- name: Start nodes
+  command: lxc-start --name={{ item.fqdn }} --daemon
+  with_items: "{{ nodes }}"
+  become: true
+
+- name: Detect UID and GID for mapped {{ lxc_user }} user
+  stat:
+    path: "{{ nodes[0]['home'] }}/.bashrc"
+  register: bashrc_info
+  become: true
+
+- name: Create ~/.ssh for nodes
+  file:
+    path: "{{ item.home }}/.ssh"
+    mode: 0700
+    owner: "{{ bashrc_info.stat.uid }}"
+    group: "{{ bashrc_info.stat.gid }}"
+    state: directory
+  with_items: "{{ nodes }}"
+  become: true
+
+- name: Generate lxc_rsa ssh key for bastion host to access nodes
+  user:
+    name: "{{ ansible_user }}"
+    generate_ssh_key: yes
+    ssh_key_bits: 4096
+    ssh_key_file: "{{ home }}/.ssh/lxc_rsa"
+    ssh_key_type: rsa
+  no_log: True
+
+- name: Update bastion host ssh config
+  blockinfile:
+    path: "{{ home }}/.ssh/config"
+    create: yes
+    mode: 0600
+    block: |
+      Host {{ k8s_node_ssh_rgx }}
+          IdentityFile {{ home }}/.ssh/lxc_rsa
+          User {{ lxc_user }}
+          StrictHostKeyChecking no
+          # UserKnownHostsFile=/dev/null
+
+- name: Create hosts for dynamically created 'nodes' inventory group
+  add_host:
+    groups: nodes
+    name: "{{ item.fqdn }}"
+
+    # Vars required for ssh ProxyJump
+    ansible_host: "{{ lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }}"
+    ansible_ssh_common_args: |
+      -o ProxyJump={{ ansible_user }}@{{ inventory_hostname }} \
+      -o HostName={{ item.fqdn }} \
+      -o UserKnownHostsFile=/dev/null \
+      -o StrictHostKeyChecking=no
+    ansible_user: "{{ lxc_user }}"
+
+    # Custom vars
+  with_items: "{{ nodes }}"
+
+# These commands are run individually because running apt update && apt install ...
+#   causes `apt-update` to run inside the container and `apt install ...` to
+#   run on the host. If you try to quote the 'chained' commands, an error is thrown.
+- name: Run bootstrap commands inside nodes
+  shell: |
+    lxc-attach -n {{ item.fqdn }} -- sudo apt update;
+    lxc-attach -n {{ item.fqdn }} -- sudo apt upgrade -y;
+    for pkg in \
+        libsasl2-dev \
+        libssl-dev \
+        openssh-server \
+        python-minimal \
+        python-pkg-resources \
+        python-pip \
+        python-setuptools; do \
+      lxc-attach -n {{ item.fqdn }} -- sudo apt install -y --no-install-recommends ${pkg};
+    done;
+  with_items: "{{ nodes }}"
+  become: true
+
+- name: Copy bastion host ssh public key to node authorized_keys files
+  copy:
+    src: "{{ home }}/.ssh/lxc_rsa.pub"
+    dest: "{{ item.home }}/.ssh/authorized_keys"
+    owner: "{{ bashrc_info.stat.uid }}"
+    group: "{{ bashrc_info.stat.gid }}"
+    mode: 0600
+    remote_src: True
+  with_items: "{{ nodes }}"
+  become: true
+
+- name: Asign path for local user ssh public key to id_rsa_pub_path variable
+  set_fact:
+    id_rsa_pub_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}.pub"
+
+- name: Asign content of local user ssh public key to id_rsa_pub_content variable
+  set_fact:
+    id_rsa_pub_content: "{{ lookup('file', id_rsa_pub_path) }}"
+
+# Cannot use authorized_key module because the value for the required param 'user'
+# would be set to {{ lxc_user }}, causing it to fail as {{ lxc_user }} does not exist
+# in /etc/shadow of bastion host
+- name: Append local ssh public key to authorized_keys file of nodes
+  lineinfile:
+    line: "{{ id_rsa_pub_content }}"
+    dest: "{{ item.home }}/.ssh/authorized_keys"
+    regexp: "^{{ id_rsa_pub_content }}$"
+  with_items: "{{ nodes }}"
+  become: true

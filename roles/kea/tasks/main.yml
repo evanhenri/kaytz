@@ -1,0 +1,23 @@
+---
+- name: Copy kea directories
+  file:
+    mode: "{{ item.mode }}"
+    path: "{{ home }}/kea/{{ item.path }}"
+    state: directory
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'directory'
+
+- name: Copy templated kea files
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ home }}/kea/{{ item.path }}"
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'file'
+  no_log: True
+
+- name: Build and run kea docker containers
+  docker_service:
+    build: yes
+    project_src: "{{ home }}/kea"
+    restarted: yes
+  become: true

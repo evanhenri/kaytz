@@ -1,0 +1,18 @@
+FROM phusion/baseimage:latest
+
+RUN apt update \
+    && apt install -y --no-install-recommends \
+        kea-common \
+        kea-dev \
+        kea-dhcp4-server \
+    && apt-get clean \
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /tmp/* \
+        /var/tmp/*
+
+RUN mkdir /etc/service/kea_dhcp4
+COPY ./kea/dhcp4/dhcp4.sh /etc/service/kea_dhcp4/run
+RUN chmod 0755 /etc/service/kea_dhcp4/run
+
+CMD ["/sbin/my_init"]

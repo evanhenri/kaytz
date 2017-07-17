@@ -1,0 +1,59 @@
+---
+- name: Remove pre-existing local known_hosts entries
+  shell: |
+    if [[ -f {{ home }}/.ssh/known_hosts ]]; then
+      ssh-keygen -R {{ item.fqdn }};
+      ssh-keygen -R {{ item.ansible_host }};
+      ssh-keygen -R {{ item.fqdn }},{{ item.ansible_host }};
+    fi;
+  with_items: "{{ bastion_configs }}"
+
+- name: Remove pre-existing ansible temp files
+  file:
+    path: "{{ home }}/.ansible/tmp"
+    state: absent
+
+- name: Add new local known_hosts entries
+  shell: |
+    ssh-keyscan -H {{ item.fqdn }} >> ~/.ssh/known_hosts;
+    ssh-keyscan -H {{ item.ansible_host }} >> ~/.ssh/known_hosts;
+    ssh-keyscan -H {{ item.fqdn }},{{ item.ansible_host }} >> ~/.ssh/known_hosts;
+  with_items: "{{ bastion_configs }}"
+
+- name: Asign path for local user ssh key to id_rsa_path variable
+  set_fact:
+    id_rsa_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}"
+
+- name: Generate ssh public key from local user private key
+  shell: ssh-keygen -y -f {{ id_rsa_path }} > {{ id_rsa_path }}.pub
+  args:
+    creates: "{{ id_rsa_path }}.pub"
+
+- name: Detect local user ssh public key
+  stat:
+    path: "{{ id_rsa_path }}.pub"
+  register: id_rsa_pub_path
+
+- name: Verify that local ssh publib key exists
+  assert:
+    that: "id_rsa_pub_path.stat.exists"
+
+- name: Copy public key to bastion host
+  shell: echo '{{ ansible_sudo_pass }}' | sshpass ssh-copy-id {{ item.ansible_user }}@{{ item.fqdn }}
+  with_items: "{{ bastion_configs }}"
+  no_log: True
+
+- name: Ensure ssh-agent is running
+  shell: pgrep ssh-agent || eval `ssh-agent -s`
+
+- name: Reset ssh-agent keys
+  shell: ssh-add -D && ssh-add
+
+- name: rsync bootstrap script to bastion host
+  shell: rsync -pv {{ role_path }}/files/setup.sh {{ item.ansible_user }}@{{ item.fqdn }}:/home/{{ item.ansible_user }}
+  with_items: "{{ bastion_configs }}"
+
+- name: Execute bootstrap script on bastion host
+  shell: ssh -t {{ item.ansible_user }}@{{ item.fqdn }} "echo '{{ ansible_sudo_pass }}' | sudo -S ./setup.sh"
+  with_items: "{{ bastion_configs }}"
+  no_log: True

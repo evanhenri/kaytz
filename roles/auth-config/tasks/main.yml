@@ -1,0 +1,87 @@
+---
+# https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/03-auth-configs.md
+
+- name: Generate bootstrap token
+  shell: |
+    head -c 16 /dev/urandom | od -An -t x | tr -d ' '
+  register: bootstrap_token_output
+
+- name: Making bootstrap token a usable template variable
+  set_fact:
+    bootstrap_token: "{{ bootstrap_token_output.stdout }}"
+
+- name: Distribute TLS bootstrap token file to each controller node
+  copy:
+    content: '{{ bootstrap_token }},kubelet-bootstrap,10001,"system:kubelet-bootstrap"'
+    dest: "{{ item.home }}/token.csv"
+  with_items: "{{ controller_nodes }}"
+  become: true
+
+- name: Create bootstrap kubeconfig file
+  shell: |
+    kubectl config set-cluster cluster01 \
+      --certificate-authority=ca.pem \
+      --embed-certs=true \
+      --server=https://{{ phys_intf_ip }}:6443 \
+      --kubeconfig=bootstrap.kubeconfig
+
+    kubectl config set-credentials kubelet-bootstrap \
+      --token={{ bootstrap_token }} \
+      --kubeconfig=bootstrap.kubeconfig
+
+    kubectl config set-context default \
+      --cluster=cluster01 \
+      --user=kubelet-bootstrap \
+      --kubeconfig=bootstrap.kubeconfig
+
+    kubectl config use-context default \
+      --kubeconfig=bootstrap.kubeconfig
+  args:
+    chdir: "{{ home }}/cfssl"
+
+- name: Create kube-proxy kubeconfig file
+  shell: |
+    kubectl config set-cluster cluster01 \
+      --certificate-authority=ca.pem \
+      --embed-certs=true \
+      --server=https://{{ phys_intf_ip }}:6443 \
+      --kubeconfig=kube-proxy.kubeconfig
+
+    kubectl config set-credentials kube-proxy \
+      --client-certificate=kube-proxy.pem \
+      --client-key=kube-proxy-key.pem \
+      --embed-certs=true \
+      --kubeconfig=kube-proxy.kubeconfig
+
+    kubectl config set-context default \
+      --cluster=cluster01 \
+      --user=kube-proxy \
+      --kubeconfig=kube-proxy.kubeconfig
+
+    kubectl config use-context default \
+      --kubeconfig=kube-proxy.kubeconfig
+  args:
+    chdir: "{{ home }}/cfssl"
+
+- name: Distribute client bootstrap.kubeconfig files
+  copy:
+    src: "{{ home }}/cfssl/bootstrap.kubeconfig"
+    dest: "{{ item.home }}/bootstrap.kubeconfig"
+    remote_src: True
+  with_items: "{{ worker_nodes }}"
+  become: true
+
+- name: Distribute client kube-proxy.kubeconfig files
+  copy:
+    src: "{{ home }}/cfssl/kube-proxy.kubeconfig"
+    dest: "{{ item.home }}/kube-proxy.kubeconfig"
+    remote_src: True
+  with_items: "{{ worker_nodes }}"
+  become: true
+
+- name: Assign ownership of copied files to LXC user
+  shell: |
+    uid_gid=$(ls -la {{ item.home }}/.bashrc | awk '{printf "%d:%d", $3, $4}')
+    chown -R ${uid_gid} {{ item.home }}
+  with_items: "{{ nodes }}"
+  become: true
