@@ -1,0 +1,38 @@
+---
+# https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/04-etcd.md
+
+- name: Create ~/etcd directory
+  file:
+    path: "{{ home }}/etcd"
+    state: directory
+
+- name: Copy etcd directories
+  file:
+    mode: "{{ item.mode }}"
+    path: "{{ home }}/etcd/{{ item.path }}"
+    state: directory
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'directory'
+
+- name: Copy templated etcd files
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ home }}/etcd/{{ item.path }}"
+  with_filetree: "{{ role_path }}/files"
+  when: item.state == 'file'
+
+- name: Build and run etcd docker container
+  docker_service:
+    build: yes
+    project_src: "{{ home }}/etcd"
+  become: true
+
+- name: Retrieve health of etcd cluster
+  command: docker-compose exec -T etcd etcdctl endpoint health
+  args:
+    chdir: "{{ home }}/etcd"
+  register: health_check_output
+
+- name: Verify health of etcd cluster
+  assert:
+    that: "':2379 is healthy: successfully committed proposal' in health_check_output.stdout"

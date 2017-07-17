@@ -17,6 +17,7 @@
     - kubectl
     - certificate-authority
     - auth-config
+    - etcd
 
 - name: Running nodes actions
   hosts: nodes

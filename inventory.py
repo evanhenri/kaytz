@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import ipaddress
+import secrets
 
 import simplejson
 
@@ -78,6 +79,17 @@ def create_bastions(inventory):
         bastion01['phys_intf_ddns_server']    = '127.0.0.1'
         bastion01['phys_intf_dhcp4_server']   = '127.0.0.1'
         bastion01['phys_intf_dns_nameserver'] = '127.0.0.1'
+
+        bastion01['etcd_name'] = f'etcd-{bastion01["phys_intf_ip"]}'
+        bastion01['etcd_client_port'] = 2379
+        bastion01['etcd_server_port'] = 2380
+        bastion01['etcd_initial_cluster']       = '{0[etcd_name]}=https://{0[phys_intf_ip]}:{0[etcd_server_port]}'.format(bastion01)
+        bastion01['etcd_advertise_client_urls'] = 'https://{0[phys_intf_ip]}:{0[etcd_client_port]}'.format(bastion01)
+        bastion01['etcd_advertise_peer_urls']   = 'https://{0[phys_intf_ip]}:{0[etcd_server_port]}'.format(bastion01)
+        bastion01['etcd_listen_peer_urls']      = 'https://{0[phys_intf_ip]}:{0[etcd_server_port]}'.format(bastion01)
+        bastion01['etcd_listen_client_urls']    = 'https://{0[phys_intf_ip]}:{0[etcd_client_port]},http://127.0.0.1:{0[etcd_client_port]}'.format(bastion01)
+        bastion01['etcd_initial_cluster_token'] = secrets.token_urlsafe()
+
         return bastion01
 
     inventory['bastion_configs'] = [{

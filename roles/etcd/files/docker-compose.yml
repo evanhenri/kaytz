@@ -1,0 +1,36 @@
+version: '2'
+services:
+  etcd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ETCD_NAME: "{{ etcd_name }}"
+      ETCDCTL_API: 3
+      ETCD_CERT_FILE: /etc/etcd/kubernetes.pem
+      ETCD_DATA_DIR: /var/lib/etcd
+      ETCD_KEY_FILE: /etc/etcd/kubernetes-key.pem
+      ETCD_PEER_CERT_FILE: /etc/etcd/kubernetes.pem
+      ETCD_PEER_KEY_FILE: /etc/etcd/kubernetes-key.pem
+      ETCD_TRUSTED_CA_FILE: /etc/etcd/ca.pem
+      ETCD_PEER_TRUSTED_CA_FILE: /etc/etcd/ca.pem
+      ETCD_CLIENT_CERT_AUTH: 1
+      ETCD_PEER_CLIENT_CERT_AUTH: 1
+      ETCD_ADVERTISE_CLIENT_URLS: "{{ etcd_advertise_client_urls }}"
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: "{{ etcd_advertise_peer_urls }}"
+      ETCD_LISTEN_PEER_URLS: "{{ etcd_listen_peer_urls }}"
+      ETCD_LISTEN_CLIENT_URLS: "{{ etcd_listen_client_urls }}"
+      ETCD_INITIAL_CLUSTER_TOKEN: "{{ etcd_initial_cluster_token }}"
+      ETCD_INITIAL_CLUSTER: "{{ etcd_initial_cluster }}"
+      ETCD_INITIAL_CLUSTER_STATE: new
+    hostname: etcd
+    network_mode: host
+    ports:
+      - "{{ phys_intf_ip }}:{{ etcd_client_port }}:{{ etcd_client_port }}/tcp"
+      - "{{ phys_intf_ip }}:{{ etcd_server_port }}:{{ etcd_server_port }}/tcp"
+    restart: always
+    volumes:
+      - "/var/lib/etcd:/var/lib/etcd"
+      - "{{ home }}/cfssl/ca.pem:/etc/etcd/ca.pem:ro"
+      - "{{ home }}/cfssl/kubernetes.pem:/etc/etcd/kubernetes.pem:ro"
+      - "{{ home }}/cfssl/kubernetes-key.pem:/etc/etcd/kubernetes-key.pem:ro"
