@@ -153,13 +153,20 @@
           StrictHostKeyChecking no
           # UserKnownHostsFile=/dev/null
 
+- name: Set node ip addresses
+  set_facts:
+    item: "{{ item | combine({ 'ansible_host': lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }) }}"
+  with_items: "{{ nodes }}"
+
 - name: Create hosts for dynamically created 'nodes' inventory group
   add_host:
     groups: nodes
     name: "{{ item.fqdn }}"
 
     # Vars required for ssh ProxyJump
-    ansible_host: "{{ lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }}"
+#    ansible_host: "{{ lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }}"
+    ansible_host: "{{ item.ansible_host }}"
+
     ansible_ssh_common_args: |
       -o ProxyJump={{ ansible_user }}@{{ inventory_hostname }} \
       -o HostName={{ item.fqdn }} \
