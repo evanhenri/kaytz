@@ -30,57 +30,39 @@ def create_bastions(inventory):
 
         bastion01['lxc_user'] = 'ubuntu'
 
-        bastion01['controller_nodes'] = [{
-            'home'    : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
-            'fqdn'    : fqdn,
-            'dist'    : 'ubuntu',
-            'release' : 'xenial',
-            'arch'    : 'amd64'
-        } for fqdn in (
-            f'{node_name}.{bastion01["domain"]}' for node_name in (
-                'controller01',
-            )
-        )]
-        bastion01['worker_nodes'] = [{
-            'home'    : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
-            'fqdn'    : fqdn,
-            'dist'    : 'ubuntu',
-            'release' : 'xenial',
-            'arch'    : 'amd64'
-        } for fqdn in (
-            f'{node_name}.{bastion01["domain"]}' for node_name in (
-                'node01',
-                'node02',
-                'node03',
-                'node04',
-            )
-        )]
+        bastion01['controller_nodes'] = []
+        controller_count = 2
+        controller_id_width = len(str(controller_count))
+        for controller_id in range(1, controller_count):
+            name = f'controller{controller_id:0>{controller_id_width}}'
+            fqdn = f'{name}.{bastion01["domain"]}'
+            bastion01['controller_nodes'].append({
+                'ansible_host': None,
+                'arch'        : 'amd64',
+                'dist'        : 'ubuntu',
+                'fqdn'        : fqdn,
+                'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
+                'name'        : name,
+                'release'     : 'xenial',
+            })
+
+        bastion01['worker_nodes'] = []
+        worker_count = 2
+        worker_id_width = len(str(worker_count))
+        for worker_id in range(1, worker_count):
+            name = f'worker{worker_id:0>{worker_id_width}}'
+            fqdn = f'{name}.{bastion01["domain"]}'
+            bastion01['worker_nodes'].append({
+                'ansible_host': None,
+                'arch'        : 'amd64',
+                'dist'        : 'ubuntu',
+                'fqdn'        : fqdn,
+                'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
+                'name'        : name,
+                'release'     : 'xenial',
+            })
+
         bastion01['nodes'] = bastion01['controller_nodes'] + bastion01['worker_nodes']
-
-
-        # bastion01['controller_nodes'] = [
-        #     f'{node_name}.{bastion01["domain"]}' for node_name in (
-        #         'controller01',
-        #     )
-        # ]
-        # bastion01['worker_nodes'] = [
-        #     f'{node_name}.{bastion01["domain"]}' for node_name in (
-        #         'node01',
-        #         'node02',
-        #         'node03',
-        #         'node04',
-        #     )
-        # ]
-        # bastion01['nodes'] = bastion01['controller_nodes'] + bastion01['worker_nodes']
-        #
-        # bastion01['node_configs'] = [{
-        #     'idx'     : idx,
-        #     'home'    : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
-        #     'fqdn'    : fqdn,
-        #     'dist'    : 'ubuntu',
-        #     'release' : 'xenial',
-        #     'arch'    : 'amd64'
-        # } for idx, fqdn in enumerate(bastion01['nodes'])]
 
         phys_intf_host_prefix = ipaddress.ip_network('192.168.0.0/24')
         bastion01['phys_intf']                = 'enp2s0'
@@ -107,8 +89,6 @@ def create_bastions(inventory):
 
 def create_inventory():
     inventory = core.Inventory()
-    inventory['local_user'] = getpass.getuser()
-    inventory['local_home'] = f'/home/{inventory["local_user"]}'
     return inventory
 
 
@@ -116,10 +96,13 @@ def create_localhosts(inventory):
     localhosts = inventory.group('localhosts')
     localhosts['ansible_connection'] = 'local'
 
-    def create_pc():
-        return localhosts.host('pc', ansible_host='127.0.0.1', ansible_user=inventory['local_user'], domain='localhost')
+    pc = localhosts.host(
+        'pc',
+        ansible_host='127.0.0.1',
+        ansible_user=getpass.getuser(),
+        domain='localhost'
+    )
 
-    create_pc()
     return localhosts
 
 
