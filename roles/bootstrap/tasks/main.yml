@@ -24,7 +24,13 @@
   set_fact:
     id_rsa_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}"
 
-- name: Generate ssh public key from local user private key
+- name: Generate ssh key
+  user:
+    name: "{{ ansible_user }}"
+    generate_ssh_key: yes
+    ssh_key_bits: 4096
+
+- name: Generate ssh public key from private key
   shell: ssh-keygen -y -f {{ id_rsa_path }} > {{ id_rsa_path }}.pub
   args:
     creates: "{{ id_rsa_path }}.pub"
@@ -34,7 +40,7 @@
     path: "{{ id_rsa_path }}.pub"
   register: id_rsa_pub_path
 
-- name: Verify that local ssh publib key exists
+- name: Verify ssh pubic key exists
   assert:
     that: "id_rsa_pub_path.stat.exists"
 
@@ -44,7 +50,7 @@
   no_log: True
 
 - name: Ensure ssh-agent is running
-  shell: pgrep ssh-agent || eval `ssh-agent -s`
+  shell: pgrep ssh-agent || eval `ssh-agent`
 
 - name: Reset ssh-agent keys
   shell: ssh-add -D && ssh-add
