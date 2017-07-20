@@ -1,4 +1,0 @@
----
-- name: tmp
-  debug:
-    msg: "{{ hostvars }}"

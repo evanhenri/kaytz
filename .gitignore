@@ -104,3 +104,4 @@ ENV/
 # Project Specific
 vault_password.txt
 vault.yml
+roles/test/
