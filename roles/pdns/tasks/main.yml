@@ -19,7 +19,6 @@
   docker_service:
     build: yes
     project_src: "{{ home }}/pdns"
-    restarted: yes
   become: true
 
 - name: Create NATIVE type domains and add SOA and NS records
@@ -29,11 +28,13 @@
     - "{{ k8s_ptr_record }} ns1.{{ domain }}"
   become: true
 
-- name: Add A records
+- name: Add dns records
   shell: docker exec pdns_nameserver_1 bash -c "pdnsutil add-record {{ item }}" || true
   with_items:
     - "{{ domain }} . A {{ phys_intf_ip }}"
     - "{{ domain }} ns1 A {{ phys_intf_dns_nameserver }}"
+    - "{{ domain }} ddns CNAME {{ phys_intf_ip }}"
+    - "{{ domain }} dhcp4 CNAME {{ phys_intf_ip }}"
   become: true
 
 - name: Set ddns meta-data
