@@ -212,18 +212,16 @@
 #   run on the host. If you try to quote the 'chained' commands, an error is thrown.
 - name: Run bootstrap commands inside nodes
   shell: |
-    lxc-attach -n {{ item.value.fqdn }} -- sudo apt update;
-    lxc-attach -n {{ item.value.fqdn }} -- sudo apt upgrade -y;
-    for pkg in \
-        libsasl2-dev \
-        libssl-dev \
-        openssh-server \
-        python-minimal \
-        python-pkg-resources \
-        python-pip \
-        python-setuptools; do \
-      lxc-attach -n {{ item.value.fqdn }} -- sudo apt install -y --no-install-recommends ${pkg};
-    done;
+    lxc-attach -n {{ item.value.fqdn }} -- apt update;
+    lxc-attach -n {{ item.value.fqdn }} -- apt upgrade -y;
+    lxc-attach -n {{ item.value.fqdn }} -- apt install -y --no-install-recommends \
+      libsasl2-dev \
+      libssl-dev \
+      openssh-server \
+      python-minimal \
+      python-pkg-resources \
+      python-pip \
+      python-setuptools;
   with_dict: "{{ nodes }}"
   become: true
 
