@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ddns
-    hostname: kea_ddns
+    hostname: ddns.{{ domain }}
     network_mode: host
     ports:
       - "{{ phys_intf_ddns_server }}:53001:53001/udp"
@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dhcp4
-    hostname: kea_dhcp4
+    hostname: dhcp4.{{ domain }}
     network_mode: "host"
     ports:
       - "{{ phys_intf_dhcp4_server }}:67:67/udp"

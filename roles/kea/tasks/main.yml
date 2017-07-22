@@ -19,5 +19,4 @@
   docker_service:
     build: yes
     project_src: "{{ home }}/kea"
-    restarted: yes
   become: true
