@@ -30,13 +30,13 @@ def create_bastions(inventory):
 
         bastion01['lxc_user'] = 'ubuntu'
 
-        bastion01['controller_nodes'] = []
+        bastion01['controller_nodes'] = {}
         controller_count = 2
         controller_id_width = len(str(controller_count))
-        for controller_id in range(1, controller_count):
+        for controller_id in range(controller_count):
             name = f'controller{controller_id:0>{controller_id_width}}'
             fqdn = f'{name}.{bastion01["domain"]}'
-            bastion01['controller_nodes'].append({
+            bastion01['controller_nodes'][fqdn] = {
                 'ansible_host': None,
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
@@ -44,15 +44,15 @@ def create_bastions(inventory):
                 'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
                 'name'        : name,
                 'release'     : 'xenial',
-            })
+            }
 
-        bastion01['worker_nodes'] = []
+        bastion01['worker_nodes'] = {}
         worker_count = 2
         worker_id_width = len(str(worker_count))
-        for worker_id in range(1, worker_count):
+        for worker_id in range(worker_count):
             name = f'worker{worker_id:0>{worker_id_width}}'
             fqdn = f'{name}.{bastion01["domain"]}'
-            bastion01['worker_nodes'].append({
+            bastion01['worker_nodes'][fqdn] = {
                 'ansible_host': None,
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
@@ -60,9 +60,12 @@ def create_bastions(inventory):
                 'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
                 'name'        : name,
                 'release'     : 'xenial',
-            })
+            }
 
-        bastion01['nodes'] = bastion01['controller_nodes'] + bastion01['worker_nodes']
+        bastion01['nodes'] = {
+            **bastion01['controller_nodes'],
+            **bastion01['worker_nodes']
+        }
 
         phys_intf_host_prefix = ipaddress.ip_network('192.168.0.0/24')
         bastion01['phys_intf']                = 'enp2s0'

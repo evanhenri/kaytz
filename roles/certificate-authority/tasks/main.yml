@@ -72,11 +72,11 @@
         ca.pem \
         kube-proxy.pem \
         kube-proxy-key.pem; do \
-      cp ${auth_file} {{ item.home }}/
+      cp ${auth_file} {{ item.value.home }}/
     done;
   args:
     chdir: "{{ home }}/cfssl"
-  with_items: "{{ worker_nodes }}"
+  with_dict: "{{ worker_nodes }}"
   become: true
 
 - name: Copy TLS certificates and keys to Kubernetes controller nodes
@@ -86,21 +86,16 @@
         ca-key.pem \
         kubernetes-key.pem \
         kubernetes.pem; do \
-      cp ${auth_file} {{ item.home }}/
+      cp ${auth_file} {{ item.value.home }}/
     done;
   args:
     chdir: "{{ home }}/cfssl"
-  with_items: "{{ controller_nodes }}"
+  with_dict: "{{ controller_nodes }}"
   become: true
 
 - name: Assign ownership of files copied to nodes to LXC user
   shell: |
-    uid_gid=$(ls -la {{ item.home }}/.bashrc | awk '{printf "%d:%d", $3, $4}')
-    chown -R ${uid_gid} {{ item.home }}/
-  with_items: "{{ nodes }}"
+    uid_gid=$(ls -la {{ item.value.home }}/.bashrc | awk '{printf "%d:%d", $3, $4}')
+    chown -R ${uid_gid} {{ item.value.home }}/
+  with_dict: "{{ nodes }}"
   become: true
-
-#- name: Cleanup certificates and keys on host
-#  file:
-#    path: "{{ home }}/cfssl"
-#    state: absent

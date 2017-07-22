@@ -68,19 +68,19 @@
   command: |
     lxc-create \
       --template=download \
-      --name={{ item.fqdn }} \
+      --name={{ item.value.fqdn }} \
       -- \
-      --dist={{ item.dist }} \
-      --arch={{ item.arch }} \
-      --release={{ item.release }}
-  with_items: "{{ nodes }}"
+      --dist={{ item.value.dist }} \
+      --arch={{ item.value.arch }} \
+      --release={{ item.value.release }}
+  with_dict: "{{ nodes }}"
   become: true
 
 - name: Delete default node config files
   file:
-    path: "/var/lib/lxc/{{ item.fqdn }}/config"
+    path: "/var/lib/lxc/{{ item.value.fqdn }}/config"
     state: absent
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
 
 # https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
@@ -88,48 +88,87 @@
 # http://containerops.org/2013/11/19/lxc-networking/
 - name: Generate node config files
   blockinfile:
-    path: "/var/lib/lxc/{{ item.1.fqdn }}/config"
+    path: "/var/lib/lxc/{{ item.value.fqdn }}/config"
     create: yes
     mode: 0644
     block: |
       lxc.include = /usr/share/lxc/config/ubuntu.common.conf
       lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
 
-      lxc.rootfs = /var/lib/lxc/{{ item.1.fqdn }}/rootfs
+      lxc.rootfs = /var/lib/lxc/{{ item.value.fqdn }}/rootfs
       lxc.rootfs.backend = dir
-      lxc.utsname = {{ item.1.fqdn }}
+      lxc.utsname = {{ item.value.fqdn }}
       lxc.arch = amd64
 
       lxc.include = /etc/lxc/default.conf
       lxc.network.name = eth0
-      lxc.network.veth.pair = veth0-{{ item.0 }}
+      lxc.network.veth.pair = {{ item.value.name }}
 
       # Default to empty ipv4 address as the container will get assigned an ip via dhcp from the kia docker container
       lxc.network.ipv4 = 0.0.0.0/{{ k8s_prefix }} {{ k8s_broadcast }}
       lxc.network.ipv4.gateway = auto
       lxc.start.auto = 1
-  with_indexed_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
 
 - name: Start nodes
-  command: lxc-start --name={{ item.fqdn }} --daemon
-  with_items: "{{ nodes }}"
+  command: lxc-start --name={{ item.value.fqdn }} --daemon
+  with_dict: "{{ nodes }}"
   become: true
 
-- name: Detect UID and GID for mapped {{ lxc_user }} user
+- name: Pause 5 seconds to ensure nodes have enought time to get ip address reservations
+  pause:
+    seconds: 5
+
+- name: Update controller_nodes with ip addresses
+  set_fact:
+    controller_nodes: |
+      {{ controller_nodes | combine({
+          item.key: {
+            'ansible_host': lookup('dig', item.value.fqdn + '.', '@' + phys_intf_ip )
+          }
+        }, recursive=True)
+      }}
+  with_dict: "{{ controller_nodes }}"
+
+- name: Update worker_nodes with ip addresses
+  set_fact:
+    worker_nodes: |
+      {{ worker_nodes | combine({
+          item.key: {
+            'ansible_host': lookup('dig', item.value.fqdn + '.', '@' + phys_intf_ip )
+          }
+        }, recursive=True)
+      }}
+  with_dict: "{{ worker_nodes }}"
+
+- name: Redefine nodes to include the updated worker and controller node configs
+  set_fact:
+    nodes: "{{ controller_nodes | combine(worker_nodes, recursive=True) }}"
+
+- name: Check validity of node ip addresses
+  assert:
+    that: "item.value.ansible_host | ipaddr"
+  with_dict: "{{ nodes }}"
+
+- name: Retrieve arbitrary node key
+  set_fact:
+    tmp_node: "{{ nodes.values() | first }}"
+
+- name: Detect mapped UID and GID for lxc_user user inside container
   stat:
-    path: "{{ nodes[0]['home'] }}/.bashrc"
+    path: "{{ tmp_node.home }}/.bashrc"
   register: bashrc_info
   become: true
 
 - name: Create ~/.ssh for nodes
   file:
-    path: "{{ item.home }}/.ssh"
+    path: "{{ item.value.home }}/.ssh"
     mode: 0700
     owner: "{{ bashrc_info.stat.uid }}"
     group: "{{ bashrc_info.stat.gid }}"
     state: directory
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
 
 - name: Generate lxc_rsa ssh key for bastion host to access nodes
@@ -153,37 +192,28 @@
           StrictHostKeyChecking no
           # UserKnownHostsFile=/dev/null
 
-- name: Set node ip addresses
-  set_facts:
-    item: "{{ item | combine({ 'ansible_host': lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }) }}"
-  with_items: "{{ nodes }}"
-
 - name: Create hosts for dynamically created 'nodes' inventory group
   add_host:
     groups: nodes
-    name: "{{ item.fqdn }}"
+    name: "{{ item.value.fqdn }}"
 
     # Vars required for ssh ProxyJump
-#    ansible_host: "{{ lookup('dig', item.fqdn + '.', '@' + phys_intf_ip ) }}"
-    ansible_host: "{{ item.ansible_host }}"
-
+    ansible_host: "{{ item.value.ansible_host }}"
     ansible_ssh_common_args: |
       -o ProxyJump={{ ansible_user }}@{{ inventory_hostname }} \
-      -o HostName={{ item.fqdn }} \
+      -o HostName={{ item.value.fqdn }} \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no
     ansible_user: "{{ lxc_user }}"
-
-    # Custom vars
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
 
 # These commands are run individually because running apt update && apt install ...
 #   causes `apt-update` to run inside the container and `apt install ...` to
 #   run on the host. If you try to quote the 'chained' commands, an error is thrown.
 - name: Run bootstrap commands inside nodes
   shell: |
-    lxc-attach -n {{ item.fqdn }} -- sudo apt update;
-    lxc-attach -n {{ item.fqdn }} -- sudo apt upgrade -y;
+    lxc-attach -n {{ item.value.fqdn }} -- sudo apt update;
+    lxc-attach -n {{ item.value.fqdn }} -- sudo apt upgrade -y;
     for pkg in \
         libsasl2-dev \
         libssl-dev \
@@ -192,20 +222,20 @@
         python-pkg-resources \
         python-pip \
         python-setuptools; do \
-      lxc-attach -n {{ item.fqdn }} -- sudo apt install -y --no-install-recommends ${pkg};
+      lxc-attach -n {{ item.value.fqdn }} -- sudo apt install -y --no-install-recommends ${pkg};
     done;
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
 
 - name: Copy bastion host ssh public key to node authorized_keys files
   copy:
     src: "{{ home }}/.ssh/lxc_rsa.pub"
-    dest: "{{ item.home }}/.ssh/authorized_keys"
+    dest: "{{ item.value.home }}/.ssh/authorized_keys"
     owner: "{{ bashrc_info.stat.uid }}"
     group: "{{ bashrc_info.stat.gid }}"
     mode: 0600
     remote_src: True
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
 
 - name: Asign path for local user ssh public key to id_rsa_pub_path variable
@@ -222,7 +252,7 @@
 - name: Append local ssh public key to authorized_keys file of nodes
   lineinfile:
     line: "{{ id_rsa_pub_content }}"
-    dest: "{{ item.home }}/.ssh/authorized_keys"
+    dest: "{{ item.value.home }}/.ssh/authorized_keys"
     regexp: "^{{ id_rsa_pub_content }}$"
-  with_items: "{{ nodes }}"
+  with_dict: "{{ nodes }}"
   become: true
