@@ -15,8 +15,8 @@
 
 - name: Add new local known_hosts entries
   shell: |
-    ssh-keyscan -H {{ item.fqdn }} >> ~/.ssh/known_hosts;
-    ssh-keyscan -H {{ item.ansible_host }} >> ~/.ssh/known_hosts;
+    ssh-keyscan -H {{ item.fqdn }} >> {{ home }}/.ssh/known_hosts;
+    ssh-keyscan -H {{ item.ansible_host }} >> {{ home }}/.ssh/known_hosts;
     ssh-keyscan -H {{ item.fqdn }},{{ item.ansible_host }} >> ~/.ssh/known_hosts;
   with_items: "{{ bastion_configs }}"
 
