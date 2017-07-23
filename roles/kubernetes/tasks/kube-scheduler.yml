@@ -1,0 +1,54 @@
+---
+- name: Detect /usr/bin/kube-scheduler
+  stat:
+    path: /usr/bin/kube-scheduler
+  register: kube_scheduler
+
+- name: Define kube_scheduler_version_resp
+  shell: kube-scheduler --version | awk '{print $2}';
+  register: kube_scheduler_version_resp
+  when: kube_scheduler.stat.exists
+
+- name: Define kube_scheduler_version
+  set_fact:
+    kube_scheduler_version: "{{ kube_scheduler_version_resp.stdout }}"
+  when: kube_scheduler_version_resp is defined
+
+- name: Downloading kube-scheduler binary
+  get_url:
+    url: "{{ k8s_download_url }}/kube-scheduler"
+    dest: "/usr/bin/kube-scheduler"
+    mode: 0755
+    force: yes
+  become: true
+  when: kube_scheduler_version is defined and kube_scheduler_version != k8s_version
+
+- name: Generate systemd unit file for kube-scheduler
+  blockinfile:
+    path: /etc/systemd/system/kube-scheduler.service
+    create: yes
+    mode: 0777
+    block: |
+      [Unit]
+      Description=Kubernetes Scheduler
+      Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+
+      [Service]
+      ExecStart=/usr/bin/kube-scheduler \
+        --leader-elect=true \
+        --master=http://{{ phys_intf_ip }}:8080 \
+        --port=10251 \
+        --v=2
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  become: true
+
+- name: Update systemd
+  include_role:
+    name: common
+    tasks_from: reload_systemd_service
+  vars:
+    service_name: kube-scheduler.service

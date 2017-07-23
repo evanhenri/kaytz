@@ -1,5 +1,15 @@
 ---
-# https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/05-kubernetes-controller.md
+# https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs
+
+- include: kubectl.yml
+- include: auth-config.yml
+- include: certificate-authority.yml
+
+- name: Create /var/log/kubernetes directory
+  file:
+    path: "/var/log/kubernetes"
+    state: directory
+  become: true
 
 - name: Create /var/lib/kubernetes directory
   file:
@@ -7,7 +17,7 @@
     state: directory
   become: true
 
-- name: Co
+- name: Copy auth files into /var/lib/kubernetes
   copy:
     src: "{{ home }}/cfssl/{{ item }}"
     dest: "/var/lib/kubernetes/{{ item }}"
@@ -18,185 +28,8 @@
     - kubernetes-key.pem
     - kubernetes.pem
     - token.csv
-
-- name: Downloading kubernetes binaries
-  get_url:
-    url: "https://storage.googleapis.com/kubernetes-release/release/{{ k8s_version }}/bin/linux/amd64/{{ item }}"
-    dest: "/usr/bin/{{ item }}"
-    mode: 0755
-    force: yes
-  with_items:
-    - kube-apiserver
-    - kube-controller-manager
-    - kube-scheduler
-    - kubectl
   become: true
 
-- name: Generate systemd unit file for kube-apiserver
-  blockinfile:
-    path: /etc/systemd/system/kube-apiserver.service
-    create: yes
-    mode: 0777
-    block: |
-      [Unit]
-      Description=Kubernetes API Server
-      Documentation=https://github.com/GoogleCloudPlatform/kubernetes
-
-      [Service]
-      ExecStart=/usr/bin/kube-apiserver \\
-        --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
-        --advertise-address={{ phys_intf_ip }} \\
-        --allow-privileged=true \\
-        --apiserver-count=3 \\
-        --audit-log-maxage=30 \\
-        --audit-log-maxbackup=3 \\
-        --audit-log-maxsize=100 \\
-        --audit-log-path=/var/lib/audit.log \\
-        --authorization-mode=RBAC \\
-        --bind-address=0.0.0.0 \\
-        --client-ca-file=/var/lib/kubernetes/ca.pem \\
-        --enable-swagger-ui=true \\
-        --etcd-cafile=/var/lib/kubernetes/ca.pem \\
-        --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
-        --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
-        --etcd-servers=https://{{ phys_intf_ip }}:2379 \\
-        --event-ttl=1h \\
-        --experimental-bootstrap-token-auth \\
-        --insecure-bind-address=0.0.0.0 \\
-        --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
-        --kubelet-client-certificate=/var/lib/kubernetes/kubernetes.pem \\
-        --kubelet-client-key=/var/lib/kubernetes/kubernetes-key.pem \\
-        --kubelet-https=true \\
-        --runtime-config=rbac.authorization.k8s.io/v1alpha1 \\
-        --service-account-key-file=/var/lib/kubernetes/ca-key.pem \\
-        --service-cluster-ip-range=10.32.0.0/24 \\
-        --service-node-port-range=30000-32767 \\
-        --tls-cert-file=/var/lib/kubernetes/kubernetes.pem \\
-        --tls-private-key-file=/var/lib/kubernetes/kubernetes-key.pem \\
-        --token-auth-file=/var/lib/kubernetes/token.csv \\
-        --v=2
-      Restart=on-failure
-      RestartSec=5
-
-      [Install]
-      WantedBy=multi-user.target
-  become: true
-
-- name: Reload systemd for kube-apiserver
-  systemd:
-    daemon_reload: yes
-  become: true
-
-- name: Enable kube-apiserver
-  systemd:
-    name: kube-apiserver
-    enabled: yes
-  become: true
-
-- name: Start kube-apiserver
-  systemd:
-    name: kube-apiserver
-    state: started
-  register: kube_apiserver_status
-  become: true
-
-- name: Verify kube-apiserver status
-  assert:
-    that: "kube_apiserver_status.status.result == 'success'"
-
-- name: Generate systemd unit file for controller manager
-  blockinfile:
-    path: /etc/systemd/system/kube-controller-manager.service
-    create: yes
-    mode: 0777
-    block: |
-      [Unit]
-      Description=Kubernetes Controller Manager
-      Documentation=https://github.com/GoogleCloudPlatform/kubernetes
-
-      [Service]
-      ExecStart=/usr/bin/kube-controller-manager \\
-        --address=0.0.0.0 \\
-        --allocate-node-cidrs=true \\
-        --cluster-cidr=10.200.0.0/16 \\
-        --cluster-name=kubernetes \\
-        --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
-        --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \\
-        --leader-elect=true \\
-        --master=http://{{ phys_intf_ip }}:8080 \\
-        --root-ca-file=/var/lib/kubernetes/ca.pem \\
-        --service-account-private-key-file=/var/lib/kubernetes/ca-key.pem \\
-        --service-cluster-ip-range=10.32.0.0/16 \\
-        --v=2
-      Restart=on-failure
-      RestartSec=5
-
-      [Install]
-      WantedBy=multi-user.target
-  become: true
-
-- name: Reload systemd for kube-controller-manager
-  systemd:
-    daemon_reload: yes
-  become: true
-
-- name: Enable kube-controller-manager
-  systemd:
-    name: kube-controller-manager
-    enabled: yes
-  become: true
-
-- name: Start kube-controller-manager
-  systemd:
-    name: kube-controller-manager
-    state: started
-  register: kube_controller_manager_status
-  become: true
-
-- name: Verify kube-controller-manager status
-  assert:
-    that: "kube_controller_manager_status.status.result == 'success'"
-
-- name: Generate systemd unit file for kube-scheduler
-  blockinfile:
-    path: /etc/systemd/system/kube-scheduler.service
-    create: yes
-    mode: 0777
-    block: |
-      [Unit]
-      Description=Kubernetes Scheduler
-      Documentation=https://github.com/GoogleCloudPlatform/kubernetes
-
-      [Service]
-      ExecStart=/usr/bin/kube-scheduler \\
-        --leader-elect=true \\
-        --master=http://{{ phys_intf_ip }}:8080 \\
-        --v=2
-      Restart=on-failure
-      RestartSec=5
-
-      [Install]
-      WantedBy=multi-user.target
-  become: true
-
-- name: Reload systemd for kube-scheduler
-  systemd:
-    daemon_reload: yes
-  become: true
-
-- name: Enable kube-scheduler
-  systemd:
-    name: kube-scheduler
-    enabled: yes
-  become: true
-
-- name: Start kube-scheduler
-  systemd:
-    name: kube-scheduler
-    state: started
-  register: kube_scheduler_status
-  become: true
-
-- name: Verify kube-scheduler status
-  assert:
-    that: "kube_scheduler_status.status.result == 'success'"
+- include: kube-apiserver.yml
+- include: kube-controller-manager.yml
+- include: kube-scheduler.yml

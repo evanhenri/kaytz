@@ -5,6 +5,7 @@ import getpass
 import ipaddress
 import secrets
 
+import requests
 import simplejson
 
 from dynamic_inventory import core
@@ -104,6 +105,11 @@ def create_bastions(inventory):
 
 def create_inventory():
     inventory = core.Inventory()
+
+    k8s_base_url = 'https://storage.googleapis.com/kubernetes-release/release'
+    inventory['k8s_version'] = requests.get(f'{k8s_base_url}/stable.txt').text.strip()
+    inventory['k8s_download_url'] = f'{k8s_base_url}/{inventory["k8s_version"]}/bin/linux/amd64'
+
     return inventory
 
 

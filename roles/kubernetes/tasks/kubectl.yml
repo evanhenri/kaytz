@@ -1,0 +1,24 @@
+---
+- name: Detect /usr/bin/kubectl
+  stat:
+    path: /usr/bin/kubectl
+  register: kubectl
+
+- name: Define kubectl_version_resp
+  shell: kubectl version | sed -n -e 's/.*GitVersion:"//p' | cut -d\" -f1;
+  register: kubectl_version_resp
+  when: kubectl.stat.exists
+
+- name: Define kubectl_version
+  set_fact:
+    kubectl_version: "{{ kubectl_version_resp.stdout }}"
+  when: kubectl_version_resp is defined
+
+- name: Download kubectl binary
+  get_url:
+    url: "{{ k8s_download_url }}/kubectl"
+    dest: "/usr/bin/kubectl"
+    mode: 0755
+    force: yes
+  become: true
+  when: kubectl_version is defined and kubectl_version != k8s_version

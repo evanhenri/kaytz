@@ -1,0 +1,9 @@
+---
+- name: Detect file
+  stat:
+    path: "{{ check_file_path }}"
+  register: _check_file
+
+- name: Verify file exists
+  assert:
+    that: "_check_file.stat.exists"

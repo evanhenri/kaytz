@@ -25,15 +25,27 @@
   template:
     src: "{{ item.src }}"
     dest: "{{ home }}/cfssl/{{ item.path }}"
-  with_filetree: "{{ role_path }}/files"
+  with_filetree: "{{ role_path }}/files/cfssl"
   when: item.state == 'file'
 
-- name: Generate a CA certificate and private key (ca-key.pem, ca.pem)
+
+- name: Generate ca.pem and ca-key.pem
   shell: cfssl gencert -initca ca-csr.json | cfssljson -bare ca;
   args:
     chdir: "{{ home }}/cfssl"
 
-- name: Generate admin client certificate and private key (admin-key.pem, admin.pem)
+- name: Verify existence of ca.pem and ca-key.pem
+  include_role:
+    name: common
+    tasks_from: assert_file_exists
+  with_items:
+    - "{{ home }}/cfssl/ca.pem"
+    - "{{ home }}/cfssl/ca-key.pem"
+  loop_control:
+    loop_var: check_file_path
+
+
+- name: Generate admin.pem, admin.csr and admin-key.pem
   shell: |
     cfssl gencert \
       -ca=ca.pem \
@@ -44,7 +56,19 @@
   args:
     chdir: "{{ home }}/cfssl"
 
-- name: Generate kube-proxy client certificate and private key (kube-proxy-key.pem, kube-proxy.pem)
+- name: Verify existence of admin.pem, admin.csr, and admin-key.pem
+  include_role:
+    name: common
+    tasks_from: assert_file_exists
+  with_items:
+    - "{{ home }}/cfssl/admin.pem"
+    - "{{ home }}/cfssl/admin.csr"
+    - "{{ home }}/cfssl/admin-key.pem"
+  loop_control:
+    loop_var: check_file_path
+
+
+- name: Generate kube-proxy.csr, kube-proxy.pem, and kube-proxy-key.pem
   shell: |
     cfssl gencert \
       -ca=ca.pem \
@@ -55,7 +79,19 @@
   args:
     chdir: "{{ home }}/cfssl"
 
-- name: Generate Kubernetes certificate and private key (kubernetes-key.pem, kubernetes.pem)
+- name: Verify existence of kube-proxy.csr, kube-proxy.pem, and kube-proxy-key.pem
+  include_role:
+    name: common
+    tasks_from: assert_file_exists
+  with_items:
+    - "{{ home }}/cfssl/kube-proxy.csr"
+    - "{{ home }}/cfssl/kube-proxy.pem"
+    - "{{ home }}/cfssl/kube-proxy-key.pem"
+  loop_control:
+    loop_var: check_file_path
+
+
+- name: Generate kubernetes.pem, kubernetes.csr, and kubernetes-key.pem
   shell: |
     cfssl gencert \
       -ca=ca.pem \
@@ -66,27 +102,32 @@
   args:
     chdir: "{{ home }}/cfssl"
 
-- name: Copy TLS certificates and keys to Kubernetes worker nodes
+- name: Verify existence of kubernetes.pem, kubernetes.csr, and kubernetes-key.pem
+  include_role:
+    name: common
+    tasks_from: assert_file_exists
+  with_items:
+    - "{{ home }}/cfssl/kubernetes.pem"
+    - "{{ home }}/cfssl/kubernetes.csr"
+    - "{{ home }}/cfssl/kubernetes-key.pem"
+  loop_control:
+    loop_var: check_file_path
+
+
+- name: Copy TLS certificates and keys to worker nodes
   shell: |
-    for auth_file in \
-        ca.pem \
-        kube-proxy.pem \
-        kube-proxy-key.pem; do \
-      cp ${auth_file} {{ item.value.home }}/
+    for auth_file in ca.pem kube-proxy.pem kube-proxy-key.pem; do
+      cp ${auth_file} {{ item.value.home }}/${auth_file};
     done;
   args:
     chdir: "{{ home }}/cfssl"
   with_dict: "{{ worker_nodes }}"
   become: true
 
-- name: Copy TLS certificates and keys to Kubernetes controller nodes
+- name: Copy TLS certificates and keys to controller nodes
   shell: |
-    for auth_file in \
-        ca.pem \
-        ca-key.pem \
-        kubernetes-key.pem \
-        kubernetes.pem; do \
-      cp ${auth_file} {{ item.value.home }}/
+    for auth_file in ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem; do
+      cp ${auth_file} {{ item.value.home }}/${auth_file};
     done;
   args:
     chdir: "{{ home }}/cfssl"

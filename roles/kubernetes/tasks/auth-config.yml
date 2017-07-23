@@ -2,22 +2,27 @@
 # https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/03-auth-configs.md
 
 - name: Generate bootstrap token
-  shell: |
-    head -c 16 /dev/urandom | od -An -t x | tr -d ' '
+  shell: head -c 16 /dev/urandom | od -An -t x | tr -d ' '
   register: bootstrap_token_output
 
-- name: Making bootstrap token a usable template variable
+- name: Define bootstrap_token
   set_fact:
     bootstrap_token: "{{ bootstrap_token_output.stdout }}"
 
-- name: Distribute TLS bootstrap token file to each controller node
+- name: Create token.csv
   copy:
     content: '{{ bootstrap_token }},kubelet-bootstrap,10001,"system:kubelet-bootstrap"'
+    dest: "{{ home }}/cfssl//token.csv"
+
+- name: Distribute TLS bootstrap token file to each controller node
+  copy:
+    src: "{{ home }}/cfssl//token.csv"
     dest: "{{ item.value.home }}/token.csv"
+    remote_src: True
   with_dict: "{{ controller_nodes }}"
   become: true
 
-- name: Create bootstrap kubeconfig file
+- name: Create bootstrap.kubeconfig
   shell: |
     kubectl config set-cluster cluster01 \
       --certificate-authority=ca.pem \
@@ -38,8 +43,9 @@
       --kubeconfig=bootstrap.kubeconfig
   args:
     chdir: "{{ home }}/cfssl"
+    creates: "{{ home }}/cfssl/bootstrap.kubeconfig"
 
-- name: Create kube-proxy kubeconfig file
+- name: Create kube-proxy.kubeconfig
   shell: |
     kubectl config set-cluster cluster01 \
       --certificate-authority=ca.pem \
@@ -62,8 +68,9 @@
       --kubeconfig=kube-proxy.kubeconfig
   args:
     chdir: "{{ home }}/cfssl"
+    creates: "{{ home }}/cfssl/kube-proxy.kubeconfig"
 
-- name: Distribute client bootstrap.kubeconfig files
+- name: Distribute bootstrap.kubeconfig to worker nodes
   copy:
     src: "{{ home }}/cfssl/bootstrap.kubeconfig"
     dest: "{{ item.value.home }}/bootstrap.kubeconfig"
@@ -71,7 +78,7 @@
   with_dict: "{{ worker_nodes }}"
   become: true
 
-- name: Distribute client kube-proxy.kubeconfig files
+- name: Distribute kube-proxy.kubeconfig to worker nodes
   copy:
     src: "{{ home }}/cfssl/kube-proxy.kubeconfig"
     dest: "{{ item.value.home }}/kube-proxy.kubeconfig"

@@ -14,9 +14,7 @@
     - networking
     - kea
     - lxc
-    - kubectl
-    - certificate-authority
-    - auth-config
+    - kubernetes
     - etcd
 
 - name: Running nodes actions
