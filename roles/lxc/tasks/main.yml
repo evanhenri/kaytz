@@ -200,7 +200,7 @@
     # Vars required for ssh ProxyJump
     ansible_host: "{{ item.value.ansible_host }}"
     ansible_ssh_common_args: |
-      -o ProxyJump={{ ansible_user }}@{{ inventory_hostname }} \
+      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}" \
       -o HostName={{ item.value.fqdn }} \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no
