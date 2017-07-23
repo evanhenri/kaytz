@@ -24,11 +24,10 @@
   when: kube_apiserver_version is defined and kube_apiserver_version != k8s_version
 
 - name: Generate systemd unit file
-  blockinfile:
-    path: /etc/systemd/system/kube-apiserver.service
-    create: yes
+  copy:
+    dest: /etc/systemd/system/kube-apiserver.service
     mode: 0777
-    block: |
+    content: |
       [Unit]
       Description=Kubernetes API Server
       Documentation=https://github.com/GoogleCloudPlatform/kubernetes

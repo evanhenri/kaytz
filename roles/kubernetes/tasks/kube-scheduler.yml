@@ -24,11 +24,10 @@
   when: kube_scheduler_version is defined and kube_scheduler_version != k8s_version
 
 - name: Generate systemd unit file for kube-scheduler
-  blockinfile:
-    path: /etc/systemd/system/kube-scheduler.service
-    create: yes
+  copy:
+    dest: /etc/systemd/system/kube-scheduler.service
     mode: 0777
-    block: |
+    content: |
       [Unit]
       Description=Kubernetes Scheduler
       Documentation=https://github.com/GoogleCloudPlatform/kubernetes

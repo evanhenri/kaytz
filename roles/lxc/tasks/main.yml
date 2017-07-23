@@ -76,22 +76,14 @@
   with_dict: "{{ nodes }}"
   become: true
 
-- name: Delete default node config files
-  file:
-    path: "/var/lib/lxc/{{ item.value.fqdn }}/config"
-    state: absent
-  with_dict: "{{ nodes }}"
-  become: true
-
 # https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
 # https://unix.stackexchange.com/questions/177030/what-is-an-unprivileged-lxc-container
 # http://containerops.org/2013/11/19/lxc-networking/
 - name: Generate node config files
-  blockinfile:
-    path: "/var/lib/lxc/{{ item.value.fqdn }}/config"
-    create: yes
+  copy:
+    dest: "/var/lib/lxc/{{ item.value.fqdn }}/config"
     mode: 0644
-    block: |
+    content: |
       lxc.include = /usr/share/lxc/config/ubuntu.common.conf
       lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
 
@@ -180,12 +172,11 @@
     ssh_key_type: rsa
   no_log: True
 
-- name: Update bastion host ssh config
-  blockinfile:
-    path: "{{ home }}/.ssh/config"
-    create: yes
+- name: Create bastion host ssh config
+  copy:
+    dest: "{{ home }}/.ssh/config"
     mode: 0600
-    block: |
+    content: |
       Host {{ k8s_node_ssh_rgx }}
           IdentityFile {{ home }}/.ssh/lxc_rsa
           User {{ lxc_user }}
