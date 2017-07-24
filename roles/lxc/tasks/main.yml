@@ -43,9 +43,29 @@
   register: lxc_running
   become: true
 
-- name: Stop running nodes
-  command: lxc-stop --name={{ item }}
+- name: Define nx_dns_nodes
+  set_fact:
+    nx_dns_nodes: []
+
+- name: Redefine nx_dns_nodes as nodes without cooresponding dns A records
+  set_fact:
+    nx_dns_nodes: |
+      {{ nx_dns_nodes }} + {{
+        [] if lookup('dig', item + './A', '@' + phys_intf_ip ) | ipaddr else [item]
+      }}
   with_items: "{{ lxc_running.stdout_lines }}"
+
+# fixme: this is a hacky workaround.
+# not sure why DHCID records remain when the corresponding A record is no longer present
+- name: Delete lingering DHCID dns records
+  shell: docker-compose exec db psql -c "DELETE FROM records WHERE name='{{ item }}' and type='DHCID';" || true
+  args:
+    chdir: "{{ home }}/pdns"
+  with_items: "{{ nx_dns_nodes }}"
+
+- name: Stop invalid running nodes
+  command: lxc-stop --name={{ item }}
+  with_items: "{{ nx_dns_nodes }}"
   become: true
 
 - name: Detect stopped nodes
@@ -58,13 +78,12 @@
   with_items: "{{ lxc_stopped.stdout_lines }}"
   become: true
 
-## fixme: this is a hacky workaround
-- name: Delete existing DNS records
-  shell: docker-compose exec db psql -c "DELETE FROM records WHERE type='A' OR type='DHCID';" || true
-  args:
-    chdir: "{{ home }}/pdns"
+- name: Detect running nodes
+  command: lxc-ls --running --line
+  register: lxc_running
+  become: true
 
-- name: Create nodes
+- name: Create nodes that have not been detected as running
   command: |
     lxc-create \
       --template=download \
@@ -74,6 +93,7 @@
       --arch={{ item.value.arch }} \
       --release={{ item.value.release }}
   with_dict: "{{ nodes }}"
+  when: item.value.fqdn not in lxc_running.stdout_lines
   become: true
 
 # https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
@@ -106,11 +126,12 @@
 - name: Start nodes
   command: lxc-start --name={{ item.value.fqdn }} --daemon
   with_dict: "{{ nodes }}"
+  when: item.value.fqdn not in lxc_running.stdout_lines
   become: true
 
-- name: Pause 5 seconds to ensure nodes have enought time to get ip address reservations
+- name: Pause n seconds for nodes to get ip address reservations
   pause:
-    seconds: 5
+    seconds: "{{ lxc_running.stdout_lines | difference(nodes) | length | int }}"
 
 - name: Update controller_nodes with ip addresses
   set_fact:
@@ -143,7 +164,7 @@
     that: "item.value.ansible_host | ipaddr"
   with_dict: "{{ nodes }}"
 
-- name: Retrieve arbitrary node key
+- name: Retrieve arbitrary node config
   set_fact:
     tmp_node: "{{ nodes.values() | first }}"
 
@@ -153,7 +174,7 @@
   register: bashrc_info
   become: true
 
-- name: Create ~/.ssh for nodes
+- name: Create ~/.ssh directory for nodes
   file:
     path: "{{ item.value.home }}/.ssh"
     mode: 0700
@@ -183,7 +204,7 @@
           StrictHostKeyChecking no
           # UserKnownHostsFile=/dev/null
 
-- name: Create hosts for dynamically created 'nodes' inventory group
+- name: Create ansible hosts for dynamically created 'nodes' inventory group
   add_host:
     groups: nodes
     name: "{{ item.value.fqdn }}"
@@ -214,6 +235,7 @@
       python-pip \
       python-setuptools;
   with_dict: "{{ nodes }}"
+  when: item.value.fqdn not in lxc_running.stdout_lines
   become: true
 
 - name: Copy bastion host ssh public key to node authorized_keys files
@@ -227,18 +249,18 @@
   with_dict: "{{ nodes }}"
   become: true
 
-- name: Asign path for local user ssh public key to id_rsa_pub_path variable
+- name: Define id_rsa_pub_path as local user's ssh public key path
   set_fact:
     id_rsa_pub_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}.pub"
 
-- name: Asign content of local user ssh public key to id_rsa_pub_content variable
+- name: Define id_rsa_pub_content as local user's ssh public key string
   set_fact:
     id_rsa_pub_content: "{{ lookup('file', id_rsa_pub_path) }}"
 
 # Cannot use authorized_key module because the value for the required param 'user'
 # would be set to {{ lxc_user }}, causing it to fail as {{ lxc_user }} does not exist
 # in /etc/shadow of bastion host
-- name: Append local ssh public key to authorized_keys file of nodes
+- name: Add local user's ssh public key to authorized_keys file of nodes
   lineinfile:
     line: "{{ id_rsa_pub_content }}"
     dest: "{{ item.value.home }}/.ssh/authorized_keys"
