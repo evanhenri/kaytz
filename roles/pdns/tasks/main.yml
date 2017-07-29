@@ -21,6 +21,10 @@
     project_src: "{{ home }}/pdns"
   become: true
 
+- name: Give containers 5 seconds to start
+  pause:
+    seconds: 5
+
 - name: Create NATIVE type domains and add SOA and NS records
   shell: docker exec pdns_nameserver_1 bash -c "pdnsutil create-zone {{ item }}" || true
   with_items:
