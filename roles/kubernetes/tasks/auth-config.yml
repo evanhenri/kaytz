@@ -14,12 +14,12 @@
     content: '{{ bootstrap_token }},kubelet-bootstrap,10001,"system:kubelet-bootstrap"'
     dest: "{{ home }}/cfssl//token.csv"
 
-- name: Distribute TLS bootstrap token file to each controller node
+- name: Distribute TLS bootstrap token file to each master node
   copy:
     src: "{{ home }}/cfssl//token.csv"
     dest: "{{ item.value.home }}/token.csv"
     remote_src: True
-  with_dict: "{{ controller_nodes }}"
+  with_dict: "{{ master_nodes }}"
   become: true
 
 - name: Create bootstrap.kubeconfig

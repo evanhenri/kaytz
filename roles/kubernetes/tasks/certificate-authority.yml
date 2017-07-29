@@ -124,14 +124,14 @@
   with_dict: "{{ worker_nodes }}"
   become: true
 
-- name: Copy TLS certificates and keys to controller nodes
+- name: Copy TLS certificates and keys to master nodes
   shell: |
     for auth_file in ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem; do
       cp ${auth_file} {{ item.value.home }}/${auth_file};
     done;
   args:
     chdir: "{{ home }}/cfssl"
-  with_dict: "{{ controller_nodes }}"
+  with_dict: "{{ master_nodes }}"
   become: true
 
 - name: Assign ownership of files copied to nodes to LXC user

@@ -32,14 +32,15 @@ def create_bastions(inventory):
 
         bastion01['lxc_user'] = 'ubuntu'
 
-        bastion01['controller_nodes'] = {}
-        controller_count = 2
-        controller_id_width = len(str(controller_count))
-        for controller_id in range(controller_count):
-            name = f'controller{controller_id:0>{controller_id_width}}'
+        bastion01['master_nodes'] = {}
+        master_count = 2
+        master_id_width = len(str(master_count))
+        for master_id in range(master_count):
+            name = f'master{master_id:0>{master_id_width}}'
             fqdn = f'{name}.{bastion01["domain"]}'
-            bastion01['controller_nodes'][fqdn] = {
+            bastion01['master_nodes'][fqdn] = {
                 'ansible_host': None,
+                'ansible_user': 'node',
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
                 'fqdn'        : fqdn,
@@ -56,16 +57,17 @@ def create_bastions(inventory):
             fqdn = f'{name}.{bastion01["domain"]}'
             bastion01['worker_nodes'][fqdn] = {
                 'ansible_host': None,
+                'ansible_user': 'node',
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
                 'fqdn'        : fqdn,
                 'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
                 'name'        : name,
-                'release'     : 'xenial',
+                'release'     : 'xenial'
             }
 
         bastion01['nodes'] = {
-            **bastion01['controller_nodes'],
+            **bastion01['master_nodes'],
             **bastion01['worker_nodes']
         }
 

@@ -133,16 +133,16 @@
   pause:
     seconds: "{{ lxc_running.stdout_lines | difference(nodes) | length | int }}"
 
-- name: Update controller_nodes with ip addresses
+- name: Update master_nodes with ip addresses
   set_fact:
-    controller_nodes: |
-      {{ controller_nodes | combine({
+    master_nodes: |
+      {{ master_nodes | combine({
           item.key: {
             'ansible_host': lookup('dig', item.value.fqdn + '.', '@' + phys_intf_ip )
           }
         }, recursive=True)
       }}
-  with_dict: "{{ controller_nodes }}"
+  with_dict: "{{ master_nodes }}"
 
 - name: Update worker_nodes with ip addresses
   set_fact:
@@ -155,9 +155,9 @@
       }}
   with_dict: "{{ worker_nodes }}"
 
-- name: Redefine nodes to include the updated worker and controller node configs
+- name: Redefine nodes to include the updated worker and master node configs
   set_fact:
-    nodes: "{{ controller_nodes | combine(worker_nodes, recursive=True) }}"
+    nodes: "{{ master_nodes | combine(worker_nodes, recursive=True) }}"
 
 - name: Check validity of node ip addresses
   assert:
