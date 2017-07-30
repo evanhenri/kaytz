@@ -11,8 +11,7 @@
 
 - name: Define kube_controller_manager_version
   set_fact:
-    kube_controller_manager_version: "{{ kube_controller_manager_version_resp.stdout }}"
-  when: kube_controller_manager_version_resp is defined
+    kube_controller_manager_version: "{{ kube_controller_manager_version_resp.stdout | default('-1') }}"
 
 - name: Download kube-controller-manager binary
   get_url:
@@ -21,7 +20,7 @@
     mode: 0755
     force: yes
   become: true
-  when: kube_controller_manager_version is defined and kube_controller_manager_version != k8s_version
+  when: kube_controller_manager_version != k8s_version
 
 - name: Generate systemd unit file
   copy:
@@ -34,17 +33,17 @@
 
       [Service]
       ExecStart=/usr/bin/kube-controller-manager \
-        --address={{ phys_intf_ip }} \
+        --address=0.0.0.0 \
         --allocate-node-cidrs=true \
         --cluster-cidr=10.200.0.0/16 \
         --cluster-name=kubernetes \
-        --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \
-        --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \
+        --cluster-signing-cert-file=/var/lib/kubernetes/auth/ca.pem \
+        --cluster-signing-key-file=/var/lib/kubernetes/auth/ca-key.pem \
         --leader-elect=true \
-        --master=http://{{ phys_intf_ip }}:8080 \
+        --master=http://127.0.0.1:8080 \
         --port=10252 \
-        --root-ca-file=/var/lib/kubernetes/ca.pem \
-        --service-account-private-key-file=/var/lib/kubernetes/ca-key.pem \
+        --root-ca-file=/var/lib/kubernetes/auth/ca.pem \
+        --service-account-private-key-file=/var/lib/kubernetes/auth/ca-key.pem \
         --service-cluster-ip-range=10.32.0.0/16 \
         --v=2
       Restart=on-failure

@@ -11,8 +11,7 @@
 
 - name: Define kube_scheduler_version
   set_fact:
-    kube_scheduler_version: "{{ kube_scheduler_version_resp.stdout }}"
-  when: kube_scheduler_version_resp is defined
+    kube_scheduler_version: "{{ kube_scheduler_version_resp.stdout | default('-1') }}"
 
 - name: Downloading kube-scheduler binary
   get_url:
@@ -21,7 +20,7 @@
     mode: 0755
     force: yes
   become: true
-  when: kube_scheduler_version is defined and kube_scheduler_version != k8s_version
+  when: kube_scheduler_version != k8s_version
 
 - name: Generate systemd unit file for kube-scheduler
   copy:
@@ -35,7 +34,7 @@
       [Service]
       ExecStart=/usr/bin/kube-scheduler \
         --leader-elect=true \
-        --master=http://{{ phys_intf_ip }}:8080 \
+        --master=http://127.0.0.1:8080 \
         --port=10251 \
         --v=2
       Restart=on-failure

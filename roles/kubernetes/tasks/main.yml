@@ -2,34 +2,59 @@
 # https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs
 
 - include: kubectl.yml
-- include: auth-config.yml
 - include: certificate-authority.yml
+- include: auth-config.yml
 
-- name: Create /var/log/kubernetes directory
+
+- name: Create kubernetes directories on nodes
   file:
-    path: "/var/log/kubernetes"
+    path: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/{{ item[1] }}"
     state: directory
+    recurse: yes
+    owner: 100000
+    group: 100000
+  with_nested:
+    - "{{ nodes.values() }}"
+    - ['/var/lib/kubernetes/auth', '/var/log/kubernetes']
   become: true
 
-- name: Create /var/lib/kubernetes directory
-  file:
-    path: "/var/lib/kubernetes"
-    state: directory
-  become: true
+- name: Define master_auth_files
+  set_fact:
+    master_auth_files:
+      - ca.pem
+      - ca-key.pem
+      - kubernetes-key.pem
+      - kubernetes.pem
+      - token.csv
 
-- name: Copy auth files into /var/lib/kubernetes
+- name: Copy auth files into /var/lib/kubernetes on master nodes
   copy:
-    src: "{{ home }}/cfssl/{{ item }}"
-    dest: "/var/lib/kubernetes/{{ item }}"
+    src: "{{ home }}/cfssl/{{ item[1] }}"
+    dest: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/var/lib/kubernetes/auth/{{ item[1] }}"
+    owner: 100000
+    group: 100000
     remote_src: True
-  with_items:
-    - ca.pem
-    - ca-key.pem
-    - kubernetes-key.pem
-    - kubernetes.pem
-    - token.csv
+  with_nested:
+    - "{{ master_nodes.values() }}"
+    - "{{ master_auth_files }}"
   become: true
 
-- include: kube-apiserver.yml
-- include: kube-controller-manager.yml
-- include: kube-scheduler.yml
+
+- name: Define worker_auth_files
+  set_fact:
+    worker_auth_files:
+      - ca.pem
+      - kube-proxy.pem
+      - kube-proxy-key.pem
+
+- name: Copy auth files into /var/lib/kubernetes on worker nodes
+  copy:
+    src: "{{ home }}/cfssl/{{ item[1] }}"
+    dest: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/var/lib/kubernetes/auth/{{ item[1] }}"
+    owner: 100000
+    group: 100000
+    remote_src: True
+  with_nested:
+    - "{{ worker_nodes.values() }}"
+    - "{{ worker_auth_files }}"
+  become: true

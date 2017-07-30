@@ -11,8 +11,7 @@
 
 - name: Define kubectl_version
   set_fact:
-    kubectl_version: "{{ kubectl_version_resp.stdout }}"
-  when: kubectl_version_resp is defined
+    kubectl_version: "{{ kubectl_version_resp.stdout | default('-1') }}"
 
 - name: Download kubectl binary
   get_url:
@@ -21,4 +20,4 @@
     mode: 0755
     force: yes
   become: true
-  when: kubectl_version is defined and kubectl_version != k8s_version
+  when: kubectl_version != k8s_version
