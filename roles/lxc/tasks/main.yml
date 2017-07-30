@@ -16,25 +16,25 @@
     state: directory
   become: true
 
-- name: Assign UIDs
+- name: Assign unpriveleged UID range
   command: usermod --add-subuid 100000-165536 {{ ansible_user }}
   become: true
 
-- name: Assign GIDs
+- name: Assign unprivileged GID range
   command: usermod --add-subgid 100000-165536 {{ ansible_user }}
   become: true
 
 - name: Copy /etc/lxc/default.conf
   template:
     src: "{{ role_path }}/files/default.conf"
-    dest: "/etc/lxc/default.conf"
+    dest: /etc/lxc/default.conf
     mode: 0644
   become: true
 
 - name: Copy /etc/default/lxc-net
   template:
     src: "{{ role_path }}/files/lxc-net"
-    dest: "/etc/default/lxc-net"
+    dest: /etc/default/lxc-net
     mode: 0644
   become: true
 
@@ -42,6 +42,7 @@
   command: lxc-ls --running --line
   register: lxc_running
   become: true
+  changed_when: lxc_running.stdout_lines | length > 0
 
 - name: Define nx_dns_nodes
   set_fact:
@@ -54,6 +55,7 @@
         [] if lookup('dig', item + './A', '@' + phys_intf_ip ) | ipaddr else [item]
       }}
   with_items: "{{ lxc_running.stdout_lines }}"
+  changed_when: nx_dns_nodes | length > 0
 
 # fixme: this is a hacky workaround.
 # not sure why DHCID records remain when the corresponding A record is no longer present
@@ -61,28 +63,34 @@
   shell: docker-compose exec -T db psql -c "DELETE FROM records WHERE type='DHCID' AND name NOT IN (SELECT name FROM records WHERE type='A');"
   args:
     chdir: "{{ home }}/pdns"
+  register: psql_retval
+  changed_when: "'DELETE 0' not in psql_retval.stdout_lines[0]"
 
 - name: Stop invalid running nodes
   command: lxc-stop --name={{ item }}
   with_items: "{{ nx_dns_nodes }}"
   become: true
+  changed_when: nx_dns_nodes | length > 0
 
 - name: Detect stopped nodes
   command: lxc-ls --stopped --line
   register: lxc_stopped
   become: true
+  changed_when: lxc_stopped.stdout_lines | length > 0
 
 - name: Destroy stopped nodes
   command: lxc-destroy --name={{ item }}
   with_items: "{{ lxc_stopped.stdout_lines }}"
   become: true
+  changed_when: lxc_stopped.stdout_lines | length > 0
 
 - name: Detect running nodes
   command: lxc-ls --running --line
   register: lxc_running
   become: true
+  changed_when: lxc_running.stdout_lines | length > 0
 
-- name: Create nodes that have not been detected as running
+- name: Create nodes that are not already running
   command: |
     lxc-create \
       --template=download \
@@ -95,9 +103,6 @@
   when: item.value.fqdn not in lxc_running.stdout_lines
   become: true
 
-# https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
-# https://unix.stackexchange.com/questions/177030/what-is-an-unprivileged-lxc-container
-# http://containerops.org/2013/11/19/lxc-networking/
 - name: Generate node config files
   copy:
     dest: "/var/lib/lxc/{{ item.value.fqdn }}/config"
@@ -130,7 +135,7 @@
 
 - name: Pause n seconds for nodes to get ip address reservations
   pause:
-    seconds: "{{ lxc_running.stdout_lines | difference(nodes) | length | int }}"
+    seconds: "{{ lxc_running.stdout_lines | difference(nodes) | length }}"
 
 - name: Update master_nodes with ip addresses
   set_fact:
@@ -160,14 +165,32 @@
 
 - name: Check validity of node ip addresses
   assert:
-    that: "item.value.ansible_host | ipaddr"
+    that: item.value.ansible_host | ipaddr
   with_dict: "{{ nodes }}"
+
+- name: Detect node users
+  shell: "lxc-attach -n {{ item.value.fqdn }} -- bash -c 'cut -d: -f1 /etc/shadow'"
+  register: node_users_output
+  with_dict: "{{ nodes }}"
+  become: true
+
+- name: Define node_users
+  set_fact:
+    node_users: |
+      {{ node_users | default({}) | combine({
+          result.item.value.fqdn: result.stdout_lines | unique
+        })
+      }}
+  with_items: "{{ node_users_output.results }}"
+  loop_control:
+    loop_var: result
 
 - name: Create sudo user for nodes
   shell: |
     lxc-attach -n {{ item.value.fqdn }} -- \
-      useradd --create-home --groups sudo --shell /bin/bash {{ item.value.ansible_user }} || true;
+      useradd --create-home --groups sudo --shell /bin/bash {{ item.value.ansible_user }};
   with_dict: "{{ nodes }}"
+  when: item.value.ansible_user not in node_users[item.value.fqdn]
   become: true
 
 - name: Create ~/.ssh directory for sudo user in each node
@@ -181,10 +204,11 @@
   with_dict: "{{ nodes }}"
   become: true
 
-- name: Disable password verification for sudo group users
-  shell: |
-    lxc-attach -n {{ item.value.fqdn }} -- \
-      sed -i -r 's/%sudo.*/%sudo   ALL=(ALL:ALL) NOPASSWD: ALL/g' /etc/sudoers;
+- name: Disable password verification for users in sudo group
+  replace:
+    path: "/var/lib/lxc/{{ item.value.fqdn }}/rootfs/etc/sudoers"
+    regexp: '^(%sudo\s+ALL=\(ALL:ALL\))\s(ALL)$'
+    replace: '\1 NOPASSWD: \2'
   with_dict: "{{ nodes }}"
   become: true
 
@@ -213,31 +237,29 @@
     groups: nodes
     name: "{{ item.value.fqdn }}"
 
-    # Vars required for ssh ProxyJump
+    # Vars required for ssh proxying through bastion host into nodes
     ansible_host: "{{ item.value.ansible_host }}"
-    ansible_ssh_common_args: |
-      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}" \
-      -o HostName={{ item.value.fqdn }} \
-      -o UserKnownHostsFile=/dev/null \
+    ansible_ssh_common_args: >
+      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}"
+      -o HostName={{ item.value.fqdn }}
+      -o UserKnownHostsFile=/dev/null
       -o StrictHostKeyChecking=no
     ansible_user: "{{ lxc_user }}"
   with_dict: "{{ nodes }}"
 
-# These commands are run individually because running apt update && apt install ...
-#   causes `apt-update` to run inside the container and `apt install ...` to
-#   run on the host. If you try to quote the 'chained' commands, an error is thrown.
 - name: Run bootstrap commands inside nodes
   shell: |
-    lxc-attach -n {{ item.value.fqdn }} -- apt update;
-    lxc-attach -n {{ item.value.fqdn }} -- apt upgrade -y;
-    lxc-attach -n {{ item.value.fqdn }} -- apt install -y --no-install-recommends \
-      libsasl2-dev \
-      libssl-dev \
-      openssh-server \
-      python-minimal \
-      python-pkg-resources \
-      python-pip \
-      python-setuptools;
+    lxc-attach -n {{ item.value.fqdn }} -- bash -c "\
+      apt-get update \
+      && apt-get upgrade -y \
+      && apt-get install -y --no-install-recommends \
+        libsasl2-dev \
+        libssl-dev \
+        openssh-server \
+        python-minimal \
+        python-pkg-resources \
+        python-pip \
+        python-setuptools"
   with_dict: "{{ nodes }}"
   become: true
 
