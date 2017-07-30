@@ -102,7 +102,7 @@
 
 - name: Disable password verification for users in sudo group
   replace:
-    path: "/var/lib/lxc/{{ item.value.fqdn }}/rootfs/etc/sudoers"
+    path: "{{ item.value.rootfs }}/etc/sudoers"
     regexp: '^(%sudo\s+ALL=\(ALL:ALL\))\s(ALL)$'
     replace: '\1 NOPASSWD: \2'
   with_dict: "{{ nodes }}"

@@ -36,38 +36,42 @@ def create_bastions(inventory):
         master_count = 2
         master_id_width = len(str(master_count))
         for master_id in range(master_count):
-            name = f'master{master_id:0>{master_id_width}}'
-            fqdn = f'{name}.{bastion01["domain"]}'
+            name   = f'master{master_id:0>{master_id_width}}'
+            fqdn   = f'{name}.{bastion01["domain"]}'
+            rootfs = f'/var/lib/lxc/{fqdn}/rootfs'
             bastion01['master_nodes'][fqdn] = {
                 'ansible_host': None,
                 'ansible_user': 'node',
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
                 'fqdn'        : fqdn,
-                'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
+                'home'        : f'{rootfs}/home/{bastion01["lxc_user"]}',
                 'name'        : name,
                 'release'     : 'xenial',
                 'uid'         : 101001,
-                'gid'         : 101001
+                'gid'         : 101001,
+                'rootfs'      : rootfs
             }
 
         bastion01['worker_nodes'] = {}
         worker_count = 2
         worker_id_width = len(str(worker_count))
         for worker_id in range(worker_count):
-            name = f'worker{worker_id:0>{worker_id_width}}'
-            fqdn = f'{name}.{bastion01["domain"]}'
+            name   = f'worker{worker_id:0>{worker_id_width}}'
+            fqdn   = f'{name}.{bastion01["domain"]}'
+            rootfs = f'/var/lib/lxc/{fqdn}/rootfs'
             bastion01['worker_nodes'][fqdn] = {
                 'ansible_host': None,
                 'ansible_user': 'node',
                 'arch'        : 'amd64',
                 'dist'        : 'ubuntu',
                 'fqdn'        : fqdn,
-                'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
+                'home'        : f'{rootfs}/home/{bastion01["lxc_user"]}',
                 'name'        : name,
                 'release'     : 'xenial',
                 'uid'         : 101001,
-                'gid'         : 101001
+                'gid'         : 101001,
+                'rootfs'      : rootfs
             }
 
         bastion01['nodes'] = {

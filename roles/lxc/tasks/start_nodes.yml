@@ -73,7 +73,7 @@
       lxc.include = /usr/share/lxc/config/ubuntu.common.conf
       lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
 
-      lxc.rootfs = /var/lib/lxc/{{ item.value.fqdn }}/rootfs
+      lxc.rootfs = {{ item.value.rootfs }}
       lxc.rootfs.backend = dir
       lxc.utsname = {{ item.value.fqdn }}
       lxc.arch = amd64

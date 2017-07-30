@@ -8,7 +8,7 @@
 
 - name: Create kubernetes directories on nodes
   file:
-    path: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/{{ item[1] }}"
+    path: "{{ item[0].rootfs }}/{{ item[1] }}"
     state: directory
     recurse: yes
     owner: 100000
@@ -30,7 +30,7 @@
 - name: Copy auth files into /var/lib/kubernetes on master nodes
   copy:
     src: "{{ home }}/cfssl/{{ item[1] }}"
-    dest: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/var/lib/kubernetes/auth/{{ item[1] }}"
+    dest: "{{ item[0].rootfs }}/var/lib/kubernetes/auth/{{ item[1] }}"
     owner: 100000
     group: 100000
     remote_src: True
@@ -50,7 +50,7 @@
 - name: Copy auth files into /var/lib/kubernetes on worker nodes
   copy:
     src: "{{ home }}/cfssl/{{ item[1] }}"
-    dest: "/var/lib/lxc/{{ item[0].fqdn }}/rootfs/var/lib/kubernetes/auth/{{ item[1] }}"
+    dest: "{{ item[0].rootfs }}/var/lib/kubernetes/auth/{{ item[1] }}"
     owner: 100000
     group: 100000
     remote_src: True
