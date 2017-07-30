@@ -1,0 +1,20 @@
+---
+- name: Setup kube-apiserver
+  include_role:
+    name: kubernetes
+    tasks_from: kube-apiserver
+  become: true
+
+- name: Setup kube-controller-manager
+  include_role:
+    name: kubernetes
+    tasks_from: kube-controller-manager
+  become: true
+
+- name: Setup kube-scheduler
+  include_role:
+    name: kubernetes
+    tasks_from: kube-scheduler
+  become: true
+
+# http://hakunin.com/six-ansible-practices#avoid-perpetually-changed-and-skipping-tasks

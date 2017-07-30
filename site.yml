@@ -17,7 +17,21 @@
     - kubernetes
     - etcd
 
-- name: Running nodes actions
+- name: Configure nodes
   hosts: nodes
   roles:
-    - node
+    - nodes
+
+- name: Configure master nodes
+  hosts: master_nodes
+  tasks:
+    - include_role:
+        name: nodes
+        tasks_from: masters
+
+- name: Configure worker nodes
+  hosts: worker_nodes
+  roles:
+    - include_role:
+        name: nodes
+        tasks_from: workers
