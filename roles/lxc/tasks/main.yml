@@ -239,7 +239,6 @@
       python-pip \
       python-setuptools;
   with_dict: "{{ nodes }}"
-  when: item.value.fqdn not in lxc_running.stdout_lines
   become: true
 
 - name: Copy bastion host ssh public key to node authorized_keys files
