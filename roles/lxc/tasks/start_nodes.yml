@@ -56,41 +56,41 @@
   command: |
     lxc-create \
       --template=download \
-      --name={{ item.value.fqdn }} \
+      --name={{ item.fqdn }} \
       -- \
-      --dist={{ item.value.dist }} \
-      --arch={{ item.value.arch }} \
-      --release={{ item.value.release }}
-  with_dict: "{{ nodes }}"
-  when: item.value.fqdn not in lxc_running.stdout_lines
+      --dist={{ item.dist }} \
+      --arch={{ item.arch }} \
+      --release={{ item.release }}
+  with_items: "{{ nodes.values() }}"
+  when: item.fqdn not in lxc_running.stdout_lines
   become: true
 
 - name: Generate node config files
   copy:
-    dest: "/var/lib/lxc/{{ item.value.fqdn }}/config"
+    dest: "/var/lib/lxc/{{ item.fqdn }}/config"
     mode: 0644
     content: |
       lxc.include = /usr/share/lxc/config/ubuntu.common.conf
       lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
 
-      lxc.rootfs = {{ item.value.rootfs }}
+      lxc.rootfs = {{ item.rootfs }}
       lxc.rootfs.backend = dir
-      lxc.utsname = {{ item.value.fqdn }}
+      lxc.utsname = {{ item.fqdn }}
       lxc.arch = amd64
 
       lxc.include = /etc/lxc/default.conf
       lxc.network.name = eth0
-      lxc.network.veth.pair = {{ item.value.name }}
+      lxc.network.veth.pair = {{ item.name }}
 
       # Default to empty ipv4 address as the container will get assigned an ip via dhcp from the kia docker container
       lxc.network.ipv4 = 0.0.0.0/{{ k8s_prefix }} {{ k8s_broadcast }}
       lxc.network.ipv4.gateway = auto
       lxc.start.auto = 1
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - name: Start nodes
-  command: lxc-start --name={{ item.value.fqdn }} --daemon
-  with_dict: "{{ nodes }}"
-  when: item.value.fqdn not in lxc_running.stdout_lines
+  command: lxc-start --name={{ item.fqdn }} --daemon
+  with_items: "{{ nodes.values() }}"
+  when: item.fqdn not in lxc_running.stdout_lines
   become: true

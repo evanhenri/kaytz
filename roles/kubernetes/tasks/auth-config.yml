@@ -17,9 +17,9 @@
 - name: Distribute TLS bootstrap token file to each master node
   copy:
     src: "{{ home }}/cfssl//token.csv"
-    dest: "{{ item.value.home }}/token.csv"
+    dest: "{{ item.home }}/token.csv"
     remote_src: True
-  with_dict: "{{ master_nodes }}"
+  with_items: "{{ master_nodes.values() }}"
   become: true
 
 - name: Create bootstrap.kubeconfig
@@ -73,22 +73,22 @@
 - name: Distribute bootstrap.kubeconfig to worker nodes
   copy:
     src: "{{ home }}/cfssl/bootstrap.kubeconfig"
-    dest: "{{ item.value.home }}/bootstrap.kubeconfig"
+    dest: "{{ item.home }}/bootstrap.kubeconfig"
     remote_src: True
-  with_dict: "{{ worker_nodes }}"
+  with_items: "{{ worker_nodes.values() }}"
   become: true
 
 - name: Distribute kube-proxy.kubeconfig to worker nodes
   copy:
     src: "{{ home }}/cfssl/kube-proxy.kubeconfig"
-    dest: "{{ item.value.home }}/kube-proxy.kubeconfig"
+    dest: "{{ item.home }}/kube-proxy.kubeconfig"
     remote_src: True
-  with_dict: "{{ worker_nodes }}"
+  with_items: "{{ worker_nodes.values() }}"
   become: true
 
 - name: Assign ownership of copied files to LXC user
   shell: |
-    uid_gid=$(ls -la {{ item.value.home }}/.bashrc | awk '{printf "%d:%d", $3, $4}')
-    chown -R ${uid_gid} {{ item.value.home }}
-  with_dict: "{{ nodes }}"
+    uid_gid=$(ls -la {{ item.home }}/.bashrc | awk '{printf "%d:%d", $3, $4}')
+    chown -R ${uid_gid} {{ item.home }}
+  with_items: "{{ nodes.values() }}"
   become: true

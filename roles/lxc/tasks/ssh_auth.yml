@@ -1,13 +1,13 @@
 ---
 - name: Create ~/.ssh directory for sudo user in each node
   file:
-    path: "{{ item.value.home }}/.ssh"
+    path: "{{ item.home }}/.ssh"
     mode: 0700
-    owner: "{{ item.value.uid }}"
-    group: "{{ item.value.gid }}"
+    owner: "{{ item.uid }}"
+    group: "{{ item.gid }}"
     state: directory
     recurse: yes
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - name: Generate lxc_rsa ssh key for bastion host to access nodes
@@ -33,12 +33,12 @@
 - name: Copy bastion host ssh public key to node authorized_keys files
   copy:
     src: "{{ home }}/.ssh/lxc_rsa.pub"
-    dest: "{{ item.value.home }}/.ssh/authorized_keys"
+    dest: "{{ item.home }}/.ssh/authorized_keys"
     mode: 0600
-    owner: "{{ item.value.uid }}"
-    group: "{{ item.value.gid }}"
+    owner: "{{ item.uid }}"
+    group: "{{ item.gid }}"
     remote_src: True
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - name: Define id_rsa_pub_path as local user's ssh public key path
@@ -55,7 +55,7 @@
 - name: Add local user's ssh public key to authorized_keys file of nodes
   lineinfile:
     line: "{{ id_rsa_pub_content }}"
-    dest: "{{ item.value.home }}/.ssh/authorized_keys"
+    dest: "{{ item.home }}/.ssh/authorized_keys"
     regexp: "^{{ id_rsa_pub_content }}$"
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true

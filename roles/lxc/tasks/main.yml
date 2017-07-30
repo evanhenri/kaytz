@@ -48,23 +48,23 @@
   set_fact:
     master_nodes: |
       {{ master_nodes | combine({
-          item.key: {
-            'ansible_host': lookup('dig', item.value.fqdn + '.', '@' + phys_intf_ip )
+          item.fqdn: {
+            'ansible_host': lookup('dig', item.fqdn + '.', '@' + phys_intf_ip )
           }
         }, recursive=True)
       }}
-  with_dict: "{{ master_nodes }}"
+  with_items: "{{ master_nodes.values() }}"
 
 - name: Update worker_nodes with ip addresses
   set_fact:
     worker_nodes: |
       {{ worker_nodes | combine({
-          item.key: {
-            'ansible_host': lookup('dig', item.value.fqdn + '.', '@' + phys_intf_ip )
+          item.fqdn: {
+            'ansible_host': lookup('dig', item.fqdn + '.', '@' + phys_intf_ip )
           }
         }, recursive=True)
       }}
-  with_dict: "{{ worker_nodes }}"
+  with_items: "{{ worker_nodes.values() }}"
 
 - name: Redefine nodes to include the updated worker and master node configs
   set_fact:
@@ -72,20 +72,20 @@
 
 - name: Check validity of node ip addresses
   assert:
-    that: item.value.ansible_host | ipaddr
-  with_dict: "{{ nodes }}"
+    that: item.ansible_host | ipaddr
+  with_items: "{{ nodes.values() }}"
 
 - name: Detect node users
-  shell: "lxc-attach -n {{ item.value.fqdn }} -- bash -c 'cut -d: -f1 /etc/shadow'"
+  shell: "lxc-attach -n {{ item.fqdn }} -- bash -c 'cut -d: -f1 /etc/shadow'"
   register: node_users_output
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - name: Define node_users
   set_fact:
     node_users: |
       {{ node_users | default({}) | combine({
-          result.item.value.fqdn: result.stdout_lines | unique
+          result.item.fqdn: result.stdout_lines | unique
         })
       }}
   with_items: "{{ node_users_output.results }}"
@@ -94,23 +94,23 @@
 
 - name: Create sudo user for nodes
   shell: |
-    lxc-attach -n {{ item.value.fqdn }} -- \
-      useradd --create-home --groups sudo --shell /bin/bash {{ item.value.ansible_user }};
-  with_dict: "{{ nodes }}"
-  when: item.value.ansible_user not in node_users[item.value.fqdn]
+    lxc-attach -n {{ item.fqdn }} -- \
+      useradd --create-home --groups sudo --shell /bin/bash {{ item.ansible_user }};
+  with_items: "{{ nodes.values() }}"
+  when: item.ansible_user not in node_users[item.fqdn]
   become: true
 
 - name: Disable password verification for users in sudo group
   replace:
-    path: "{{ item.value.rootfs }}/etc/sudoers"
+    path: "{{ item.rootfs }}/etc/sudoers"
     regexp: '^(%sudo\s+ALL=\(ALL:ALL\))\s(ALL)$'
     replace: '\1 NOPASSWD: \2'
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - name: Run bootstrap commands inside nodes
   shell: |
-    lxc-attach -n {{ item.value.fqdn }} -- bash -c "\
+    lxc-attach -n {{ item.fqdn }} -- bash -c "\
       apt-get update \
       && apt-get upgrade -y \
       && apt-get install -y --no-install-recommends \
@@ -121,7 +121,7 @@
         python-pkg-resources \
         python-pip \
         python-setuptools"
-  with_dict: "{{ nodes }}"
+  with_items: "{{ nodes.values() }}"
   become: true
 
 - include: ssh_auth.yml
