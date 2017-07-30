@@ -58,10 +58,9 @@
 # fixme: this is a hacky workaround.
 # not sure why DHCID records remain when the corresponding A record is no longer present
 - name: Delete lingering DHCID dns records
-  shell: docker-compose exec db psql -c "DELETE FROM records WHERE name='{{ item }}' and type='DHCID';" || true
+  shell: docker-compose exec -T db psql -c "DELETE FROM records WHERE type='DHCID' AND name NOT IN (SELECT name FROM records WHERE type='A');"
   args:
     chdir: "{{ home }}/pdns"
-  with_items: "{{ nx_dns_nodes }}"
 
 - name: Stop invalid running nodes
   command: lxc-stop --name={{ item }}
