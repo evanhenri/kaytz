@@ -1,0 +1,45 @@
+---
+- name: Create ansible hosts for dynamically created 'nodes' inventory group
+  add_host:
+    groups: nodes
+    name: "{{ item.value.fqdn }}"
+
+    # Vars required for ssh proxying through bastion host into nodes
+    ansible_host: "{{ item.value.ansible_host }}"
+    ansible_ssh_common_args: >
+      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}"
+      -o HostName={{ item.value.fqdn }}
+      -o UserKnownHostsFile=/dev/null
+      -o StrictHostKeyChecking=no
+    ansible_user: "{{ lxc_user }}"
+  with_dict: "{{ nodes }}"
+
+- name: Create ansible hosts for dynamically created 'master_nodes' inventory group
+  add_host:
+    groups: master_nodes
+    name: "{{ item.value.fqdn }}"
+
+    # Vars required for ssh proxying through bastion host into nodes
+    ansible_host: "{{ item.value.ansible_host }}"
+    ansible_ssh_common_args: >
+      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}"
+      -o HostName={{ item.value.fqdn }}
+      -o UserKnownHostsFile=/dev/null
+      -o StrictHostKeyChecking=no
+    ansible_user: "{{ lxc_user }}"
+  with_dict: "{{ master_nodes }}"
+
+- name: Create ansible hosts for dynamically created 'worker_nodes' inventory group
+  add_host:
+    groups: worker_nodes
+    name: "{{ item.value.fqdn }}"
+
+    # Vars required for ssh proxying through bastion host into nodes
+    ansible_host: "{{ item.value.ansible_host }}"
+    ansible_ssh_common_args: >
+      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}"
+      -o HostName={{ item.value.fqdn }}
+      -o UserKnownHostsFile=/dev/null
+      -o StrictHostKeyChecking=no
+    ansible_user: "{{ lxc_user }}"
+  with_dict: "{{ worker_nodes }}"

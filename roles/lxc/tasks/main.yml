@@ -38,100 +38,7 @@
     mode: 0644
   become: true
 
-- name: Detect running nodes
-  command: lxc-ls --running --line
-  register: lxc_running
-  become: true
-  changed_when: lxc_running.stdout_lines | length > 0
-
-- name: Define nx_dns_nodes
-  set_fact:
-    nx_dns_nodes: []
-
-- name: Redefine nx_dns_nodes as nodes without cooresponding dns A records
-  set_fact:
-    nx_dns_nodes: |
-      {{ nx_dns_nodes }} + {{
-        [] if lookup('dig', item + './A', '@' + phys_intf_ip ) | ipaddr else [item]
-      }}
-  with_items: "{{ lxc_running.stdout_lines }}"
-  changed_when: nx_dns_nodes | length > 0
-
-# fixme: this is a hacky workaround.
-# not sure why DHCID records remain when the corresponding A record is no longer present
-- name: Delete lingering DHCID dns records
-  shell: docker-compose exec -T db psql -c "DELETE FROM records WHERE type='DHCID' AND name NOT IN (SELECT name FROM records WHERE type='A');"
-  args:
-    chdir: "{{ home }}/pdns"
-  register: psql_retval
-  changed_when: "'DELETE 0' not in psql_retval.stdout_lines[0]"
-
-- name: Stop invalid running nodes
-  command: lxc-stop --name={{ item }}
-  with_items: "{{ nx_dns_nodes }}"
-  become: true
-  changed_when: nx_dns_nodes | length > 0
-
-- name: Detect stopped nodes
-  command: lxc-ls --stopped --line
-  register: lxc_stopped
-  become: true
-  changed_when: lxc_stopped.stdout_lines | length > 0
-
-- name: Destroy stopped nodes
-  command: lxc-destroy --name={{ item }}
-  with_items: "{{ lxc_stopped.stdout_lines }}"
-  become: true
-  changed_when: lxc_stopped.stdout_lines | length > 0
-
-- name: Detect running nodes
-  command: lxc-ls --running --line
-  register: lxc_running
-  become: true
-  changed_when: lxc_running.stdout_lines | length > 0
-
-- name: Create nodes that are not already running
-  command: |
-    lxc-create \
-      --template=download \
-      --name={{ item.value.fqdn }} \
-      -- \
-      --dist={{ item.value.dist }} \
-      --arch={{ item.value.arch }} \
-      --release={{ item.value.release }}
-  with_dict: "{{ nodes }}"
-  when: item.value.fqdn not in lxc_running.stdout_lines
-  become: true
-
-- name: Generate node config files
-  copy:
-    dest: "/var/lib/lxc/{{ item.value.fqdn }}/config"
-    mode: 0644
-    content: |
-      lxc.include = /usr/share/lxc/config/ubuntu.common.conf
-      lxc.include = /usr/share/lxc/config/ubuntu.userns.conf
-
-      lxc.rootfs = /var/lib/lxc/{{ item.value.fqdn }}/rootfs
-      lxc.rootfs.backend = dir
-      lxc.utsname = {{ item.value.fqdn }}
-      lxc.arch = amd64
-
-      lxc.include = /etc/lxc/default.conf
-      lxc.network.name = eth0
-      lxc.network.veth.pair = {{ item.value.name }}
-
-      # Default to empty ipv4 address as the container will get assigned an ip via dhcp from the kia docker container
-      lxc.network.ipv4 = 0.0.0.0/{{ k8s_prefix }} {{ k8s_broadcast }}
-      lxc.network.ipv4.gateway = auto
-      lxc.start.auto = 1
-  with_dict: "{{ nodes }}"
-  become: true
-
-- name: Start nodes
-  command: lxc-start --name={{ item.value.fqdn }} --daemon
-  with_dict: "{{ nodes }}"
-  when: item.value.fqdn not in lxc_running.stdout_lines
-  become: true
+- include: start_nodes.yml
 
 - name: Pause n seconds for nodes to get ip address reservations
   pause:
@@ -193,17 +100,6 @@
   when: item.value.ansible_user not in node_users[item.value.fqdn]
   become: true
 
-- name: Create ~/.ssh directory for sudo user in each node
-  file:
-    path: "{{ item.value.home }}/.ssh"
-    mode: 0700
-    owner: "{{ item.value.uid }}"
-    group: "{{ item.value.gid }}"
-    state: directory
-    recurse: yes
-  with_dict: "{{ nodes }}"
-  become: true
-
 - name: Disable password verification for users in sudo group
   replace:
     path: "/var/lib/lxc/{{ item.value.fqdn }}/rootfs/etc/sudoers"
@@ -211,41 +107,6 @@
     replace: '\1 NOPASSWD: \2'
   with_dict: "{{ nodes }}"
   become: true
-
-- name: Generate lxc_rsa ssh key for bastion host to access nodes
-  user:
-    name: "{{ ansible_user }}"
-    generate_ssh_key: yes
-    ssh_key_bits: 4096
-    ssh_key_file: "{{ home }}/.ssh/lxc_rsa"
-    ssh_key_type: rsa
-  no_log: True
-
-- name: Create bastion host ssh config
-  copy:
-    dest: "{{ home }}/.ssh/config"
-    mode: 0600
-    content: |
-      Host {{ k8s_node_ssh_rgx }}
-          IdentityFile {{ home }}/.ssh/lxc_rsa
-          User {{ lxc_user }}
-          StrictHostKeyChecking no
-          # UserKnownHostsFile=/dev/null
-
-- name: Create ansible hosts for dynamically created 'nodes' inventory group
-  add_host:
-    groups: nodes
-    name: "{{ item.value.fqdn }}"
-
-    # Vars required for ssh proxying through bastion host into nodes
-    ansible_host: "{{ item.value.ansible_host }}"
-    ansible_ssh_common_args: >
-      -o ProxyCommand="ssh -W %h:%p {{ ansible_user }}@{{ inventory_hostname }}"
-      -o HostName={{ item.value.fqdn }}
-      -o UserKnownHostsFile=/dev/null
-      -o StrictHostKeyChecking=no
-    ansible_user: "{{ lxc_user }}"
-  with_dict: "{{ nodes }}"
 
 - name: Run bootstrap commands inside nodes
   shell: |
@@ -263,32 +124,5 @@
   with_dict: "{{ nodes }}"
   become: true
 
-- name: Copy bastion host ssh public key to node authorized_keys files
-  copy:
-    src: "{{ home }}/.ssh/lxc_rsa.pub"
-    dest: "{{ item.value.home }}/.ssh/authorized_keys"
-    mode: 0600
-    owner: "{{ item.value.uid }}"
-    group: "{{ item.value.gid }}"
-    remote_src: True
-  with_dict: "{{ nodes }}"
-  become: true
-
-- name: Define id_rsa_pub_path as local user's ssh public key path
-  set_fact:
-    id_rsa_pub_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}.pub"
-
-- name: Define id_rsa_pub_content as local user's ssh public key string
-  set_fact:
-    id_rsa_pub_content: "{{ lookup('file', id_rsa_pub_path) }}"
-
-# Cannot use authorized_key module because the value for the required param 'user'
-# would be set to {{ lxc_user }}, causing it to fail as {{ lxc_user }} does not exist
-# in /etc/shadow of bastion host
-- name: Add local user's ssh public key to authorized_keys file of nodes
-  lineinfile:
-    line: "{{ id_rsa_pub_content }}"
-    dest: "{{ item.value.home }}/.ssh/authorized_keys"
-    regexp: "^{{ id_rsa_pub_content }}$"
-  with_dict: "{{ nodes }}"
-  become: true
+- include: ssh_auth.yml
+- include: add_hosts.yml

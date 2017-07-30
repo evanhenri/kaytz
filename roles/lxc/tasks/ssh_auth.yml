@@ -1,0 +1,61 @@
+---
+- name: Create ~/.ssh directory for sudo user in each node
+  file:
+    path: "{{ item.value.home }}/.ssh"
+    mode: 0700
+    owner: "{{ item.value.uid }}"
+    group: "{{ item.value.gid }}"
+    state: directory
+    recurse: yes
+  with_dict: "{{ nodes }}"
+  become: true
+
+- name: Generate lxc_rsa ssh key for bastion host to access nodes
+  user:
+    name: "{{ ansible_user }}"
+    generate_ssh_key: yes
+    ssh_key_bits: 4096
+    ssh_key_file: "{{ home }}/.ssh/lxc_rsa"
+    ssh_key_type: rsa
+  no_log: True
+
+- name: Create bastion host ssh config
+  copy:
+    dest: "{{ home }}/.ssh/config"
+    mode: 0600
+    content: |
+      Host {{ k8s_node_ssh_rgx }}
+          IdentityFile {{ home }}/.ssh/lxc_rsa
+          User {{ lxc_user }}
+          StrictHostKeyChecking no
+          # UserKnownHostsFile=/dev/null
+
+- name: Copy bastion host ssh public key to node authorized_keys files
+  copy:
+    src: "{{ home }}/.ssh/lxc_rsa.pub"
+    dest: "{{ item.value.home }}/.ssh/authorized_keys"
+    mode: 0600
+    owner: "{{ item.value.uid }}"
+    group: "{{ item.value.gid }}"
+    remote_src: True
+  with_dict: "{{ nodes }}"
+  become: true
+
+- name: Define id_rsa_pub_path as local user's ssh public key path
+  set_fact:
+    id_rsa_pub_path: "{{ lookup('ini', 'private_key_file section=defaults file=ansible.cfg') }}.pub"
+
+- name: Define id_rsa_pub_content as local user's ssh public key string
+  set_fact:
+    id_rsa_pub_content: "{{ lookup('file', id_rsa_pub_path) }}"
+
+# Cannot use authorized_key module because the value for the required param 'user'
+# would be set to {{ lxc_user }}, causing it to fail as {{ lxc_user }} does not exist
+# in /etc/shadow of bastion host
+- name: Add local user's ssh public key to authorized_keys file of nodes
+  lineinfile:
+    line: "{{ id_rsa_pub_content }}"
+    dest: "{{ item.value.home }}/.ssh/authorized_keys"
+    regexp: "^{{ id_rsa_pub_content }}$"
+  with_dict: "{{ nodes }}"
+  become: true

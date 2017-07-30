@@ -31,7 +31,7 @@
 
 - name: Configure worker nodes
   hosts: worker_nodes
-  roles:
+  tasks:
     - include_role:
         name: nodes
         tasks_from: workers
