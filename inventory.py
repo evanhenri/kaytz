@@ -30,7 +30,7 @@ def create_bastions(inventory):
         bastion01['k8s_ptr_record']   = k8s_host_prefix.network_address.reverse_pointer
         bastion01['k8s_node_ssh_rgx'] = f'*.{bastion01["domain"]}'
 
-        bastion01['lxc_user'] = 'ubuntu'
+        bastion01['lxc_user'] = 'node'
 
         bastion01['master_nodes'] = {}
         master_count = 2
@@ -47,6 +47,8 @@ def create_bastions(inventory):
                 'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
                 'name'        : name,
                 'release'     : 'xenial',
+                'uid'         : 101001,
+                'gid'         : 101001
             }
 
         bastion01['worker_nodes'] = {}
@@ -63,7 +65,9 @@ def create_bastions(inventory):
                 'fqdn'        : fqdn,
                 'home'        : f'/var/lib/lxc/{fqdn}/rootfs/home/{bastion01["lxc_user"]}',
                 'name'        : name,
-                'release'     : 'xenial'
+                'release'     : 'xenial',
+                'uid'         : 101001,
+                'gid'         : 101001
             }
 
         bastion01['nodes'] = {

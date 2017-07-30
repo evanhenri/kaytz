@@ -164,23 +164,28 @@
     that: "item.value.ansible_host | ipaddr"
   with_dict: "{{ nodes }}"
 
-- name: Retrieve arbitrary node config
-  set_fact:
-    tmp_node: "{{ nodes.values() | first }}"
-
-- name: Detect mapped UID and GID for lxc_user user inside container
-  stat:
-    path: "{{ tmp_node.home }}/.bashrc"
-  register: bashrc_info
+- name: Create sudo user for nodes
+  shell: |
+    lxc-attach -n {{ item.value.fqdn }} -- \
+      useradd --create-home --groups sudo --shell /bin/bash {{ item.value.ansible_user }} || true;
+  with_dict: "{{ nodes }}"
   become: true
 
-- name: Create ~/.ssh directory for nodes
+- name: Create ~/.ssh directory for sudo user in each node
   file:
     path: "{{ item.value.home }}/.ssh"
     mode: 0700
-    owner: "{{ bashrc_info.stat.uid }}"
-    group: "{{ bashrc_info.stat.gid }}"
+    owner: "{{ item.value.uid }}"
+    group: "{{ item.value.gid }}"
     state: directory
+    recurse: yes
+  with_dict: "{{ nodes }}"
+  become: true
+
+- name: Disable password verification for sudo group users
+  shell: |
+    lxc-attach -n {{ item.value.fqdn }} -- \
+      sed -i -r 's/%sudo.*/%sudo   ALL=(ALL:ALL) NOPASSWD: ALL/g' /etc/sudoers;
   with_dict: "{{ nodes }}"
   become: true
 
@@ -242,9 +247,9 @@
   copy:
     src: "{{ home }}/.ssh/lxc_rsa.pub"
     dest: "{{ item.value.home }}/.ssh/authorized_keys"
-    owner: "{{ bashrc_info.stat.uid }}"
-    group: "{{ bashrc_info.stat.gid }}"
     mode: 0600
+    owner: "{{ item.value.uid }}"
+    group: "{{ item.value.gid }}"
     remote_src: True
   with_dict: "{{ nodes }}"
   become: true
