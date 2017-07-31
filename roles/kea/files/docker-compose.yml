@@ -4,10 +4,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ddns
-    hostname: ddns.{{ domain }}
+    hostname: ddns
     network_mode: host
     ports:
-      - "{{ phys_intf_ddns_server }}:53001:53001/udp"
+      - "{{ ddns_server }}:53001:53001/udp"
     restart: always
     volumes:
       - /var/lib/kea:/var/lib/kea
@@ -17,11 +17,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dhcp4
-    hostname: dhcp4.{{ domain }}
+    hostname: dhcp4
     network_mode: "host"
     ports:
-      - "{{ phys_intf_dhcp4_server }}:67:67/udp"
-      - "{{ phys_intf_dhcp4_server }}:68:68/udp"
+      - "{{ dhcp4_server }}:67:67/udp"
+      - "{{ dhcp4_server }}:68:68/udp"
     restart: always
     volumes:
       - /var/lib/kea:/var/lib/kea

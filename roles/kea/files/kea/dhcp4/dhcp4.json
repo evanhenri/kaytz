@@ -23,7 +23,7 @@
             "replace-client-name": false,
             "sender-ip": "0.0.0.0",
             "sender-port": 0,
-            "server-ip": "127.0.0.1",
+            "server-ip": "{{ ddns_server }}",
             "server-port": 53001
         },
         "expired-leases-processing": {
@@ -34,7 +34,7 @@
             "max-reclaim-time": 0,
             "unwarned-reclaim-cycles": 5
         },
-        "valid-lifetime": 300,
+        "valid-lifetime": 3600,
         "subnet4": [
             {
                 "subnet": "{{ k8s_host_prefix }}",

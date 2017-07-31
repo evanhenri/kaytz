@@ -22,11 +22,11 @@ services:
       dockerfile: Dockerfile.recursor
     depends_on:
       - db
-    hostname: pdns_recursor
+    hostname: recursor
     network_mode: host
     ports:
-      - "{{ phys_intf_dns_nameserver }}:5353:5353/tcp"
-      - "{{ phys_intf_dns_nameserver }}:5353:5353/udp"
+      - "{{ dns_recursor }}:5353:5353/tcp"
+      - "{{ dns_recursor }}:5353:5353/udp"
     restart: always
 
   nameserver:
@@ -35,9 +35,9 @@ services:
       dockerfile: Dockerfile.nameserver
     depends_on:
       - recursor
-    hostname: pdns_nameserver
+    hostname: nameserver
     network_mode: host
     ports:
-      - "{{ phys_intf_dns_nameserver }}:53:53/tcp"
-      - "{{ phys_intf_dns_nameserver }}:53:53/udp"
+      - "{{ dns_nameserver }}:53:53/tcp"
+      - "{{ dns_nameserver }}:53:53/udp"
     restart: always

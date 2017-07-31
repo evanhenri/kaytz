@@ -1,6 +1,6 @@
 {
     "DhcpDdns": {
-        "ip-address": "{{ phys_intf_ddns_server }}",
+        "ip-address": "{{ ddns_server }}",
         "port": 53001,
         "dns-server-timeout": 100,
         "ncr-protocol": "UDP",
@@ -20,7 +20,7 @@
                     "dns-servers": [
                         {
                             "hostname": "",
-                            "ip-address": "{{ phys_intf_dns_nameserver }}",
+                            "ip-address": "{{ dns_nameserver }}",
                             "port": 53
                         }
                     ]
@@ -30,12 +30,12 @@
         "reverse-ddns": {
             "ddns-domains": [
                 {
-                    "name": "1.0.10.in-addr.arpa.",
+                    "name": "{{ k8s_ptr_record }}.",
                     "key-name": "ddns-tsig-key.{{ domain }}",
                     "dns-servers": [
                         {
                             "hostname": "",
-                            "ip-address": "{{ phys_intf_dns_nameserver }}",
+                            "ip-address": "{{ dns_nameserver }}",
                             "port": 53
                         }
                     ]

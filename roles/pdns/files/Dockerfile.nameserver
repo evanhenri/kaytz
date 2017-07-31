@@ -5,6 +5,8 @@ RUN apt update \
         debconf-utils
 
 COPY ./powerdns/nameserver/pdns-backend-pgsql.seed /tmp/pdns-backend-pgsql.seed
+COPY ./powerdns/nameserver/zone.conf /zone.conf
+COPY ./powerdns/nameserver/reverse_zone.conf /reverse_zone.conf
 
 # pdns-backend-pgsql.seed defines values that would otherwise
 # get set through an interactive cli during installation

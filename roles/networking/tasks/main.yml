@@ -56,5 +56,5 @@
   become: true
 
 - name: Update resolv.conf to use local dns nameserver
-  shell: echo nameserver {{ phys_intf_dns_nameserver }} > /etc/resolv.conf;
+  shell: echo nameserver {{ dns_nameserver }} > /etc/resolv.conf;
   become: true

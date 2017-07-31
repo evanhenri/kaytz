@@ -80,16 +80,18 @@ def create_bastions(inventory):
         }
 
         phys_intf_host_prefix = ipaddress.ip_network('192.168.0.0/24')
-        bastion01['phys_intf']                = 'enp2s0'
-        bastion01['phys_intf_prefix']         = phys_intf_host_prefix.prefixlen
-        bastion01['phys_intf_host_prefix']    = phys_intf_host_prefix
-        bastion01['phys_intf_gateway']        = phys_intf_host_prefix[1]
-        bastion01['phys_intf_ip']             = phys_intf_host_prefix[101]
-        bastion01['phys_intf_broadcast']      = phys_intf_host_prefix.broadcast_address
-        bastion01['phys_intf_netmask']        = phys_intf_host_prefix.netmask
-        bastion01['phys_intf_ddns_server']    = '127.0.0.1'
-        bastion01['phys_intf_dhcp4_server']   = '127.0.0.1'
-        bastion01['phys_intf_dns_nameserver'] = '127.0.0.1'
+        bastion01['phys_intf']             = 'enp2s0'
+        bastion01['phys_intf_prefix']      = phys_intf_host_prefix.prefixlen
+        bastion01['phys_intf_host_prefix'] = phys_intf_host_prefix
+        bastion01['phys_intf_gateway']     = phys_intf_host_prefix[1]
+        bastion01['phys_intf_ip']          = phys_intf_host_prefix[101]
+        bastion01['phys_intf_broadcast']   = phys_intf_host_prefix.broadcast_address
+        bastion01['phys_intf_netmask']     = phys_intf_host_prefix.netmask
+        bastion01['dns_nameserver']        = inventory['localhost']
+        bastion01['dns_recursor']          = inventory['localhost']
+        bastion01['dhcp4_server']          = inventory['localhost']
+        bastion01['ddns_server']           = inventory['localhost']
+        bastion01['ddns_cidr']             = inventory['localhost_network']
 
         bastion01['etcd_name'] = f'etcd-{bastion01["phys_intf_ip"]}'
         bastion01['etcd_client_port'] = 2379
@@ -116,8 +118,12 @@ def create_bastions(inventory):
 def create_inventory():
     inventory = core.Inventory()
 
+    localhost_network = ipaddress.ip_network('127.0.0.0/8')
+    inventory['localhost_network'] = localhost_network
+    inventory['localhost']         = localhost_network[1]
+
     k8s_base_url = 'https://storage.googleapis.com/kubernetes-release/release'
-    inventory['k8s_version'] = requests.get(f'{k8s_base_url}/stable.txt').text.strip()
+    inventory['k8s_version']      = requests.get(f'{k8s_base_url}/stable.txt').text.strip()
     inventory['k8s_download_url'] = f'{k8s_base_url}/{inventory["k8s_version"]}/bin/linux/amd64'
 
     return inventory
