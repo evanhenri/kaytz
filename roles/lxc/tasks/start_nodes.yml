@@ -18,16 +18,6 @@
   with_items: "{{ lxc_running.stdout_lines }}"
   changed_when: nx_dns_nodes | length > 0
 
-# fixme: this is a hacky workaround.
-# not sure why DHCID records remain when the corresponding A record is no longer present
-- name: Delete lingering DHCID dns records
-  shell: docker-compose exec -T db psql -c "DELETE FROM records WHERE type='DHCID' AND name NOT IN (SELECT name FROM records WHERE type='A');"
-  args:
-    chdir: "{{ home }}/pdns"
-  register: psql_retval
-  changed_when: "'DELETE 0' not in psql_retval.stdout_lines"
-  become: true
-
 - name: Stop invalid running nodes
   command: lxc-stop --name={{ item }}
   with_items: "{{ nx_dns_nodes }}"
